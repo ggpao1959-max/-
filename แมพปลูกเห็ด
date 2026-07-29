@@ -1,0 +1,111 @@
+-- โหลด Rayfield UI Library
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Auto Farm Script",
+   LoadingTitle = "Loading Rayfield UI...",
+   LoadingSubtitle = "by Assistant",
+   ConfigurationSaving = {
+      Enabled = false
+   },
+   KeySystem = false
+})
+
+-- สร้าง Tab หลัก
+local MainTab = Window:CreateTab("Main Controls", 4483362458) -- ไอคอนตั้งต้น
+
+-- ตัวแปรสถานะเปิด/ปิด (Toggles)
+local autoSeeds = false
+local autoBoosters = false
+local autoSell = false
+
+----------------------------------------------------
+-- 1. ฟังก์ชันเสกเมล็ด (Auto Buy Seeds)
+----------------------------------------------------
+MainTab:CreateSection("Seeds System")
+
+MainTab:CreateToggle({
+   Name = "Auto Buy Seeds (Venom Spore & Magic Mushroom)",
+   CurrentValue = false,
+   Flag = "ToggleSeeds",
+   Callback = function(Value)
+      autoSeeds = Value
+      if autoSeeds then
+         task.spawn(function()
+            while autoSeeds do
+               -- ซื้อ Venom Spore Seed
+               local args1 = { "Venom Spore Seed", 0 }
+               game:GetService("ReplicatedStorage"):WaitForChild("BuySeedRequest"):FireServer(unpack(args1))
+
+               -- ซื้อ Magic Mushroom Seed
+               local args2 = { "Magic Mushroom Seed", 0 }
+               game:GetService("ReplicatedStorage"):WaitForChild("BuySeedRequest"):FireServer(unpack(args2))
+
+               task.wait(1) -- ระยะเวลาหน่วง (ปรับได้ตามต้องการ)
+            end
+         end)
+      end
+   end,
+})
+
+----------------------------------------------------
+-- 2. ฟังก์ชันเสกบูส (Auto Buy Boosters)
+----------------------------------------------------
+MainTab:CreateSection("Boosters System")
+
+MainTab:CreateToggle({
+   Name = "Auto Buy Boosters (Growth & Speed)",
+   CurrentValue = false,
+   Flag = "ToggleBoosters",
+   Callback = function(Value)
+      autoBoosters = Value
+      if autoBoosters then
+         task.spawn(function()
+            while autoBoosters do
+               -- ซื้อ Growth Booster
+               local args1 = { "Growth Booster", 0 }
+               game:GetService("ReplicatedStorage"):WaitForChild("BuyBoosterRequest"):FireServer(unpack(args1))
+
+               -- ซื้อ Speed Growth
+               local args2 = { "Speed Growth", 0 }
+               game:GetService("ReplicatedStorage"):WaitForChild("BuyBoosterRequest"):FireServer(unpack(args2))
+
+               task.wait(1) -- ระยะเวลาหน่วง (ปรับได้ตามต้องการ)
+            end
+         end)
+      end
+   end,
+})
+
+----------------------------------------------------
+-- 3. ฟังก์ชันขายทั้งหมด (Auto Sell All)
+----------------------------------------------------
+MainTab:CreateSection("Sell System")
+
+MainTab:CreateToggle({
+   Name = "Auto Sell All",
+   CurrentValue = false,
+   Flag = "ToggleSell",
+   Callback = function(Value)
+      autoSell = Value
+      if autoSell then
+         task.spawn(function()
+            while autoSell do
+               local args = { "SellAll" }
+               game:GetService("ReplicatedStorage"):WaitForChild("SellEvent"):FireServer(unpack(args))
+
+               task.wait(1) -- ระยะเวลาหน่วง (ปรับได้ตามต้องการ)
+            end
+         end)
+      end
+   end,
+})
+
+-- ปุ่มขายทันที 1 ครั้ง (เผื่อไม่อยากเปิด Auto)
+MainTab:CreateButton({
+   Name = "Sell All (Once)",
+   Callback = function()
+      local args = { "SellAll" }
+      game:GetService("ReplicatedStorage"):WaitForChild("SellEvent"):FireServer(unpack(args))
+   end,
+})
