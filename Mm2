@@ -1,0 +1,570 @@
+-- โหลด Rayfield Library
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- สร้าง Window
+local Window = Rayfield:CreateWindow({
+   Name = "MM2 - Helper Menu Ultimate",
+   LoadingTitle = "Loading Script...",
+   LoadingSubtitle = "by Assistant",
+   ConfigurationSaving = { Enabled = false },
+   KeySystem = false,
+   Theme = "Dark"
+})
+
+-- สร้าง Tabs
+local MainTab = Window:CreateTab("Main Controls", 4483362458)
+local VisualTab = Window:CreateTab("Visuals", 4483362458)
+
+----------------------------------------------------
+-- ตัวแปรระบบ (Variables)
+----------------------------------------------------
+local lockMurdererEnabled = false
+local lockSheriffEnabled = false
+local hitboxEnabled = false
+local hitboxSize = 4
+local knifeSilentAimEnabled = false
+local gunSilentAimEnabled = false
+local autoFarmCoinsEnabled = false
+
+-- ตัวแปรระบบ Shake & Teleport / Fling
+local flingTargetPlayer = ""
+local autoFlingEnabled = false
+local shakeMurdererEnabled = false
+local shakeSheriffEnabled = false
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+----------------------------------------------------
+-- ฟังก์ชันตรวจสอบบทบาท (Role Checker)
+----------------------------------------------------
+local function getRole(player)
+    if not player then return nil, nil end
+    local backpack = player:FindFirstChild("Backpack")
+    local character = player.Character
+    
+    local function hasItem(itemName)
+        return (backpack and backpack:FindFirstChild(itemName)) or (character and character:FindFirstChild(itemName))
+    end
+    
+    if hasItem("Knife") then
+        return "Murderer", Color3.fromRGB(255, 0, 0)
+    elseif hasItem("Gun") then
+        return "Sheriff", Color3.fromRGB(0, 170, 255)
+    end
+    return nil, nil
+end
+
+----------------------------------------------------
+-- ฟังก์ชันค้นหาปืนตกในแมพ
+----------------------------------------------------
+local function getDroppedGun()
+    local gun = workspace:FindFirstChild("GunDrop")
+    if gun then return gun end
+    
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Tool") and obj.Name == "Gun" and not obj:IsDescendantOf(Players) then
+            return obj
+        end
+    end
+    return nil
+end
+
+----------------------------------------------------
+-- ฟังก์ชันค้นหาเป้าหมาย
+----------------------------------------------------
+local function getKnifeTarget()
+    local closestTarget = nil
+    local shortestDistance = math.huge
+    
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                local hrp = plr.Character.HumanoidRootPart
+                local dist = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")) 
+                    and (hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude or 9999
+                
+                if dist < shortestDistance then
+                    shortestDistance = dist
+                    closestTarget = hrp
+                end
+            end
+        end
+    end
+    return closestTarget
+end
+
+local function getMurdererTarget()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+            local role, _ = getRole(plr)
+            if role == "Murderer" and hum and hum.Health > 0 then
+                return plr.Character.HumanoidRootPart
+            end
+        end
+    end
+    return nil
+end
+
+local function getSheriffTarget()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+            local role, _ = getRole(plr)
+            if role == "Sheriff" and hum and hum.Health > 0 then
+                return plr.Character.HumanoidRootPart
+            end
+        end
+    end
+    return nil
+end
+
+----------------------------------------------------
+-- ระบบ Real Fling Engine (Bypass Physics Engine)
+----------------------------------------------------
+local function bypassFling(targetHrp)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if not (char and hrp and targetHrp and targetHrp.Parent) then return end
+
+    -- บังคับปิดการชนของตัวเราเพื่อหลบ Anti-cheat เช็คการสแนปตำแหน่ง
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.CustomPhysicalProperties = PhysicalProperties.new(100, 100, 100, 100, 100)
+        end
+    end
+
+    -- ปรับปรุงแรงหมุนแบบผสมผสาน Velocity Glitch
+    local flingVel = Vector3.new(0, 999999, 0)
+    local angVel = Vector3.new(999999, 999999, 999999)
+
+    hrp.AssemblyLinearVelocity = flingVel
+    hrp.AssemblyAngularVelocity = angVel
+
+    -- เทคนิคการตั้ง CFrame สลับตำแหน่งรอบๆ ตัวเป้าหมาย เพื่อฝืนสร้างแรงกระแทกจากกล่อง Collider
+    local targetVel = targetHrp.AssemblyLinearVelocity
+    local offset = Vector3.new(math.random(-2, 2), math.random(-1, 1), math.random(-2, 2))
+    
+    hrp.CFrame = targetHrp.CFrame * CFrame.new(offset) * CFrame.Angles(math.rad(math.random(0, 360)), math.rad(math.random(0, 360)), 0)
+    
+    -- ใส่แรงดันเสมือนพุ่งเข้าชน
+    if targetVel.Magnitude > 0 then
+        hrp.AssemblyLinearVelocity = targetVel * 100
+    end
+end
+
+----------------------------------------------------
+-- 1. Silent Aim Hook
+----------------------------------------------------
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if (method == "FireServer" or method == "InvokeServer") then
+        if gunSilentAimEnabled then
+            local murdererHRP = getMurdererTarget()
+            if murdererHRP then
+                for i, arg in pairs(args) do
+                    if type(arg) == "Vector3" then
+                        args[i] = murdererHRP.Position
+                    elseif typeof(arg) == "CFrame" then
+                        args[i] = CFrame.new(arg.Position, murdererHRP.Position)
+                    end
+                end
+                return oldNamecall(self, unpack(args))
+            end
+        end
+
+        if knifeSilentAimEnabled then
+            local targetHRP = getKnifeTarget()
+            if targetHRP then
+                for i, arg in pairs(args) do
+                    if type(arg) == "Vector3" then
+                        args[i] = targetHRP.Position
+                    elseif typeof(arg) == "CFrame" then
+                        args[i] = CFrame.new(arg.Position, targetHRP.Position)
+                    end
+                end
+                return oldNamecall(self, unpack(args))
+            end
+        end
+    end
+
+    return oldNamecall(self, ...)
+end)
+
+----------------------------------------------------
+-- 2. ระบบ Auto Farm Coins
+----------------------------------------------------
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if autoFarmCoinsEnabled then
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            
+            if hrp and hum and hum.Health > 0 then
+                local coinContainer = workspace:FindFirstChild("CoinContainer") or workspace
+                local closestCoin = nil
+                local shortestDist = math.huge
+                
+                for _, obj in pairs(coinContainer:GetChildren()) do
+                    if obj.Name == "Coin_Server" or obj.Name == "Coin" or obj.Name == "CoinContainer" then
+                        local coinPart = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
+                        if coinPart then
+                            local dist = (hrp.Position - coinPart.Position).Magnitude
+                            if dist < shortestDist then
+                                shortestDist = dist
+                                closestCoin = coinPart
+                            end
+                        end
+                    end
+                end
+                
+                if closestCoin then
+                    hrp.CFrame = closestCoin.CFrame
+                end
+            end
+        end
+    end
+end)
+
+----------------------------------------------------
+-- 3. Loop ระบบ Fling อัตโนมัติ (รันใน Heartbeat)
+----------------------------------------------------
+RunService.Heartbeat:Connect(function()
+    if autoFlingEnabled and flingTargetPlayer ~= "" then
+        local targetPlr = Players:FindFirstChild(flingTargetPlayer)
+        if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") then
+            bypassFling(targetPlr.Character.HumanoidRootPart)
+        end
+    end
+
+    if shakeMurdererEnabled then
+        local mHrp = getMurdererTarget()
+        if mHrp then
+            bypassFling(mHrp)
+        end
+    end
+
+    if shakeSheriffEnabled then
+        local sHrp = getSheriffTarget()
+        if sHrp then
+            bypassFling(sHrp)
+        end
+    end
+end)
+
+----------------------------------------------------
+-- 4. ระบบ Hitbox
+----------------------------------------------------
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local hrp = plr.Character.HumanoidRootPart
+                local role, roleColor = getRole(plr)
+                local existingBox = hrp:FindFirstChild("RoleHitbox")
+
+                if hitboxEnabled and role then
+                    if not existingBox then
+                        existingBox = Instance.new("BoxHandleAdornment")
+                        existingBox.Name = "RoleHitbox"
+                        existingBox.AlwaysOnTop = true
+                        existingBox.ZIndex = 10
+                        existingBox.Transparency = 0.5
+                        existingBox.Adornee = hrp
+                        existingBox.Parent = hrp
+                    end
+                    existingBox.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+                    existingBox.Color3 = roleColor
+                else
+                    if existingBox then
+                        existingBox:Destroy()
+                    end
+                end
+            end
+        end
+
+        local droppedGun = getDroppedGun()
+        if droppedGun then -- ✅ แก้ไขจุดนี้เรียบร้อยแล้ว (ลบคำว่า me ออก)
+            local gunPart = droppedGun:IsA("BasePart") and droppedGun or droppedGun:FindFirstChildWhichIsA("BasePart")
+            if gunPart then
+                local existingGunBox = gunPart:FindFirstChild("GunHitbox")
+                if hitboxEnabled then
+                    if not existingGunBox then
+                        existingGunBox = Instance.new("BoxHandleAdornment")
+                        existingGunBox.Name = "GunHitbox"
+                        existingGunBox.Size = Vector3.new(3, 3, 3)
+                        existingGunBox.Color3 = Color3.fromRGB(0, 255, 100)
+                        existingGunBox.AlwaysOnTop = true
+                        existingGunBox.ZIndex = 10
+                        existingGunBox.Transparency = 0.4
+                        existingGunBox.Adornee = gunPart
+                        existingGunBox.Parent = gunPart
+                    end
+                else
+                    if existingGunBox then existingGunBox:Destroy() end
+                end
+            end
+        end
+    end
+end)
+
+----------------------------------------------------
+-- 5. ระบบ Target Lock
+----------------------------------------------------
+RunService.RenderStepped:Connect(function()
+    if not lockMurdererEnabled and not lockSheriffEnabled then return end
+    
+    local closestTarget = nil
+    local shortestDistance = math.huge
+    
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local role, _ = getRole(plr)
+            
+            local isTarget = false
+            if lockMurdererEnabled and role == "Murderer" then
+                isTarget = true
+            elseif lockSheriffEnabled and role == "Sheriff" then
+                isTarget = true
+            end
+            
+            if isTarget then
+                local hrp = plr.Character.HumanoidRootPart
+                local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                
+                if onScreen then
+                    local mousePos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    
+                    if dist < shortestDistance then
+                        shortestDistance = dist
+                        closestTarget = hrp
+                    end
+                end
+            end
+        end
+    end
+    
+    if closestTarget then
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, closestTarget.Position)
+    end
+end)
+
+----------------------------------------------------
+-- UI Controls (Main Tab)
+----------------------------------------------------
+
+MainTab:CreateSection("--- Combat & Helper Controls ---")
+
+MainTab:CreateToggle({
+   Name = "Auto Farm Coins (เก็บเงินอัตโนมัติ)",
+   CurrentValue = false,
+   Flag = "AutoFarmCoinsToggle",
+   Callback = function(Value)
+       autoFarmCoinsEnabled = Value
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "Lock Murderer (ล็อคเป้าไปที่ ฆาตกร)",
+   CurrentValue = false,
+   Flag = "LockMurdererToggle",
+   Callback = function(Value)
+       lockMurdererEnabled = Value
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "Lock Sheriff (ล็อคเป้าไปที่ นายอำเภอ)",
+   CurrentValue = false,
+   Flag = "LockSheriffToggle",
+   Callback = function(Value)
+       lockSheriffEnabled = Value
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "Knife Silent Aim (ปามีดทะลุกำแพงโดน 100%)",
+   CurrentValue = false,
+   Flag = "KnifeSilentAimToggle",
+   Callback = function(Value)
+       knifeSilentAimEnabled = Value
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "Gun Silent Aim (ยิงโดนฆาตกร 100%)",
+   CurrentValue = false,
+   Flag = "GunSilentAimToggle",
+   Callback = function(Value)
+       gunSilentAimEnabled = Value
+   end,
+})
+
+MainTab:CreateButton({
+   Name = "Teleport to Gun (วาร์ปไปเก็บปืน)",
+   Callback = function()
+       local droppedGun = getDroppedGun()
+       local char = LocalPlayer.Character
+       
+       if droppedGun and char and char:FindFirstChild("HumanoidRootPart") then
+           local gunPart = droppedGun:IsA("BasePart") and droppedGun or droppedGun:FindFirstChildWhichIsA("BasePart")
+           if gunPart then
+               char.HumanoidRootPart.CFrame = gunPart.CFrame + Vector3.new(0, 1, 0)
+               Rayfield:Notify({Title = "Success", Content = "วาร์ปไปหาปืนแล้ว!", Duration = 2})
+           end
+       else
+           Rayfield:Notify({Title = "Not Found", Content = "ไม่พบปืนที่ตกอยู่ในขณะนี้", Duration = 2})
+       end
+   end,
+})
+
+----------------------------------------------------
+-- UI Controls (Main Tab - ระบบเขย่า & วาร์ปพุ่งใส่บทบาท)
+----------------------------------------------------
+MainTab:CreateSection("--- Role Shake Teleport Controls ---")
+
+MainTab:CreateToggle({
+   Name = "Auto Fling Murderer (ชนฆาตกรให้ปลิวหลุดแมพ - เปิดค้างไว้สักพัก)",
+   CurrentValue = false,
+   Flag = "ShakeMurdererToggle",
+   Callback = function(Value)
+       shakeMurdererEnabled = Value
+       if Value then
+           Rayfield:Notify({Title = "Fling Active", Content = "กำลังเขย่าตัวฆาตกร! เปิดค้างไว้สักครู่ ระบบจะสะสมแรงกระแทกจนเด้งออกแมพเอง", Duration = 4})
+       end
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "Auto Fling Sheriff (ชนนายอำเภอให้ปลิวหลุดแมพ - เปิดค้างไว้สักพัก)",
+   CurrentValue = false,
+   Flag = "ShakeSheriffToggle",
+   Callback = function(Value)
+       shakeSheriffEnabled = Value
+       if Value then
+           Rayfield:Notify({Title = "Fling Active", Content = "กำลังเขย่าตัวนายอำเภอ! เปิดค้างไว้สักครู่ ระบบจะสะสมแรงกระแทกจนเด้งออกแมพเอง", Duration = 4})
+       end
+   end,
+})
+
+----------------------------------------------------
+-- UI Controls (Main Tab - ระบบเขย่า & วาร์ปพุ่งใส่ผู้เล่นระบุชื่อ)
+----------------------------------------------------
+MainTab:CreateSection("--- Player Shake & Teleport Controls ---")
+
+local function getPlayerList()
+    local list = {}
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            table.insert(list, plr.Name)
+        end
+    end
+    return list
+end
+
+local TargetDropdown = MainTab:CreateDropdown({
+   Name = "เลือกผู้เล่นที่ต้องการชนให้ปลิว",
+   Options = getPlayerList(),
+   CurrentOption = {""},
+   MultipleOptions = false,
+   Flag = "FlingTargetDropdown",
+   Callback = function(Options)
+       flingTargetPlayer = Options[1]
+   end,
+})
+
+MainTab:CreateButton({
+   Name = "🔄 อัปเดตรายชื่อผู้เล่นในเซิร์ฟเวอร์",
+   Callback = function()
+       TargetDropdown:Refresh(getPlayerList())
+   end,
+})
+
+MainTab:CreateButton({
+   Name = "กดครั้งเดียว: ชนเป้าหมาย (อัดแรงต่อเนื่อง 3 วินาที)",
+   Callback = function()
+       if flingTargetPlayer ~= "" then
+           local targetPlr = Players:FindFirstChild(flingTargetPlayer)
+           if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") then
+               local startTime = tick()
+               task.spawn(function()
+                   while tick() - startTime < 3 do
+                       bypassFling(targetPlr.Character.HumanoidRootPart)
+                       task.wait()
+                   end
+               end)
+               Rayfield:Notify({Title = "Flinging...", Content = "กำลังเขย่าและอัดแรง Fling ใส่ " .. flingTargetPlayer .. " (รอแป๊บเดียวเด้งเอง)", Duration = 3})
+           end
+       else
+           Rayfield:Notify({Title = "Warning", Content = "กรุณาเลือกผู้เล่นก่อน", Duration = 2})
+       end
+   end,
+})
+
+MainTab:CreateToggle({
+   Name = "อัตโนมัติ: เปิดเขย่าค้างไว้จนกว่าเป้าหมายจะเด้งหลุดแมพ",
+   CurrentValue = false,
+   Flag = "AutoFlingToggle",
+   Callback = function(Value)
+       autoFlingEnabled = Value
+       if Value then
+           Rayfield:Notify({Title = "Auto Fling Active", Content = "เปิดระบบเขย่าค้างไว้แล้ว! รอระบบซ้อนฟิสิกส์สักพักคนโดนจะปลิวเอง", Duration = 4})
+       end
+   end,
+})
+
+----------------------------------------------------
+-- UI Controls (Visual Tab)
+----------------------------------------------------
+
+VisualTab:CreateSection("--- Visual Settings ---")
+
+VisualTab:CreateToggle({
+   Name = "Hitbox Visual (กล่องสี แดง/ฟ้า/เขียว)",
+   CurrentValue = false,
+   Flag = "HitboxToggle",
+   Callback = function(Value)
+       hitboxEnabled = Value
+       if not Value then
+           for _, plr in pairs(Players:GetPlayers()) do
+               if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                   local box = plr.Character.HumanoidRootPart:FindFirstChild("RoleHitbox")
+                   if box then box:Destroy() end
+               end
+           end
+           local droppedGun = getDroppedGun()
+           if droppedGun then
+               local gunPart = droppedGun:IsA("BasePart") and droppedGun or droppedGun:FindFirstChildWhichIsA("BasePart")
+               if gunPart and gunPart:FindFirstChild("GunHitbox") then
+                   gunPart.GunHitbox:Destroy()
+               end
+           end
+       end
+   end,
+})
+
+VisualTab:CreateSlider({
+   Name = "ปรับขนาด Hitbox (Hitbox Size)",
+   Range = {4, 30},
+   Increment = 1,
+   Suffix = " Studs",
+   CurrentValue = 4,
+   Flag = "HitboxSizeSlider",
+   Callback = function(Value)
+       hitboxSize = Value
+   end,
+})
