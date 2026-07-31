@@ -1,0 +1,451 @@
+-- ====================================================
+-- 🥛 Uiน้องเปา (V7: Red FOV & Clean Aimbot - Wall Check & FOV Lock)
+-- ====================================================
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+----------------------------------------------------
+-- 1. ตัวแปรตั้งค่าระบบ
+----------------------------------------------------
+local fovRadius = 100
+local minFov = 30
+local maxFov = 300
+
+local aimbotSmoothness = 1.0 -- 1.0 คือล็อคทันที, ค่าน้อยลงจะหันนุ่มนวลขึ้น
+local minSmooth = 0.05
+local maxSmooth = 1.0
+
+local isAimbotEnabled = false
+
+local isFovPositionLocked = false
+local lockedFovPosition = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+----------------------------------------------------
+-- 2. วงกลม FOV (Drawing API) - สีแดงสด
+----------------------------------------------------
+local fovCircle = Drawing.new("Circle")
+fovCircle.Thickness = 2
+fovCircle.NumSides = 60
+fovCircle.Radius = fovRadius
+fovCircle.Filled = false
+fovCircle.Visible = false
+fovCircle.Color = Color3.fromRGB(255, 0, 0) -- สีแดงสด
+
+----------------------------------------------------
+-- 3. สร้าง GUI หลัก (Uiน้องเปา)
+----------------------------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "UiNongPaoGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 500, 0, 460)
+mainFrame.Position = UDim2.new(0.5, -250, 0.5, -230)
+mainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 18)
+uiCorner.Parent = mainFrame
+
+local headerBar = Instance.new("Frame")
+headerBar.Name = "HeaderBar"
+headerBar.Size = UDim2.new(1, 0, 0, 55)
+headerBar.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+headerBar.BorderSizePixel = 0
+headerBar.Parent = mainFrame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 18)
+headerCorner.Parent = headerBar
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -20, 1, 0)
+titleLabel.Position = UDim2.new(0, 20, 0, 0)
+titleLabel.Text = "🥛 Uiน้องเปา"
+titleLabel.TextColor3 = Color3.fromRGB(40, 40, 40)
+titleLabel.TextSize = 20
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.BackgroundTransparency = 1
+titleLabel.Parent = headerBar
+
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Name = "ScrollContainer"
+scrollFrame.Size = UDim2.new(1, -20, 1, -70)
+scrollFrame.Position = UDim2.new(0, 10, 0, 60)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 6
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 300)
+scrollFrame.Parent = mainFrame
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 12)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.Parent = scrollFrame
+
+----------------------------------------------------
+-- 4. องค์ประกอบเมนู
+----------------------------------------------------
+-- [Container 1: FOV & Smoothness Lock]
+local fovContainer = Instance.new("Frame")
+fovContainer.Size = UDim2.new(0.95, 0, 0, 160)
+fovContainer.BackgroundColor3 = Color3.fromRGB(248, 248, 248)
+fovContainer.BorderSizePixel = 0
+fovContainer.Parent = scrollFrame
+
+local cCorner1 = Instance.new("UICorner")
+cCorner1.CornerRadius = UDim.new(0, 12)
+cCorner1.Parent = fovContainer
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -120, 0, 30)
+titleText.Position = UDim2.new(0, 15, 0, 5)
+titleText.Text = "🎯 วงกลมล็อคเป้า (ขนาด: 100)"
+titleText.TextColor3 = Color3.fromRGB(40, 40, 40)
+titleText.TextSize = 14
+titleText.Font = Enum.Font.FredokaOne
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.BackgroundTransparency = 1
+titleText.Parent = fovContainer
+
+local toggleAimbotBtn = Instance.new("TextButton")
+toggleAimbotBtn.Size = UDim2.new(0, 90, 0, 30)
+toggleAimbotBtn.Position = UDim2.new(1, -105, 0, 8)
+toggleAimbotBtn.Text = "ปิดอยู่"
+toggleAimbotBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleAimbotBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+toggleAimbotBtn.Font = Enum.Font.FredokaOne
+toggleAimbotBtn.TextSize = 14
+toggleAimbotBtn.Parent = fovContainer
+
+local btnCorner1 = Instance.new("UICorner")
+btnCorner1.CornerRadius = UDim.new(0, 8)
+btnCorner1.Parent = toggleAimbotBtn
+
+-- Slider 1: FOV Size
+local sliderBg = Instance.new("Frame")
+sliderBg.Size = UDim2.new(0.9, 0, 0, 8)
+sliderBg.Position = UDim2.new(0.05, 0, 0.28, 0)
+sliderBg.BackgroundColor3 = Color3.fromRGB(210, 210, 210)
+sliderBg.BorderSizePixel = 0
+sliderBg.Parent = fovContainer
+
+local sBgCorner = Instance.new("UICorner")
+sBgCorner.CornerRadius = UDim.new(1, 0)
+sBgCorner.Parent = sliderBg
+
+local sliderFill = Instance.new("Frame")
+sliderFill.Size = UDim2.new(0.25, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- สีแดง
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderBg
+
+local sFillCorner = Instance.new("UICorner")
+sFillCorner.CornerRadius = UDim.new(1, 0)
+sFillCorner.Parent = sliderFill
+
+local sliderKnob = Instance.new("TextButton")
+sliderKnob.Size = UDim2.new(0, 20, 0, 20)
+sliderKnob.Position = UDim2.new(0.25, -10, 0.5, -10)
+sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+sliderKnob.Text = ""
+sliderKnob.Parent = sliderBg
+
+local knobCorner = Instance.new("UICorner")
+knobCorner.CornerRadius = UDim.new(1, 0)
+knobCorner.Parent = sliderKnob
+
+-- Slider 2: Smoothness Speed
+local smoothText = Instance.new("TextLabel")
+smoothText.Size = UDim2.new(1, -30, 0, 30)
+smoothText.Position = UDim2.new(0, 15, 0.48, 0)
+smoothText.Text = "⚡ ความเร็วการหันกล้อง: 100% (Instant)"
+smoothText.TextColor3 = Color3.fromRGB(40, 40, 40)
+smoothText.TextSize = 14
+smoothText.Font = Enum.Font.FredokaOne
+smoothText.TextXAlignment = Enum.TextXAlignment.Left
+smoothText.BackgroundTransparency = 1
+smoothText.Parent = fovContainer
+
+local smoothSliderBg = Instance.new("Frame")
+smoothSliderBg.Size = UDim2.new(0.9, 0, 0, 8)
+smoothSliderBg.Position = UDim2.new(0.05, 0, 0.75, 0)
+smoothSliderBg.BackgroundColor3 = Color3.fromRGB(210, 210, 210)
+smoothSliderBg.BorderSizePixel = 0
+smoothSliderBg.Parent = fovContainer
+
+local smoothBgCorner = Instance.new("UICorner")
+smoothBgCorner.CornerRadius = UDim.new(1, 0)
+smoothBgCorner.Parent = smoothSliderBg
+
+local smoothSliderFill = Instance.new("Frame")
+smoothSliderFill.Size = UDim2.new(1, 0, 1, 0)
+smoothSliderFill.BackgroundColor3 = Color3.fromRGB(60, 200, 100)
+smoothSliderFill.BorderSizePixel = 0
+smoothSliderFill.Parent = smoothSliderBg
+
+local smoothFillCorner = Instance.new("UICorner")
+smoothFillCorner.CornerRadius = UDim.new(1, 0)
+smoothFillCorner.Parent = smoothSliderFill
+
+local smoothSliderKnob = Instance.new("TextButton")
+smoothSliderKnob.Size = UDim2.new(0, 20, 0, 20)
+smoothSliderKnob.Position = UDim2.new(1, -10, 0.5, -10)
+smoothSliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+smoothSliderKnob.Text = ""
+smoothSliderKnob.Parent = smoothSliderBg
+
+local smoothKnobCorner = Instance.new("UICorner")
+smoothKnobCorner.CornerRadius = UDim.new(1, 0)
+smoothKnobCorner.Parent = smoothSliderKnob
+
+-- [Container 1.5: FOV Position Lock]
+local fovPosContainer = Instance.new("Frame")
+fovPosContainer.Size = UDim2.new(0.95, 0, 0, 60)
+fovPosContainer.BackgroundColor3 = Color3.fromRGB(248, 248, 248)
+fovPosContainer.BorderSizePixel = 0
+fovPosContainer.Parent = scrollFrame
+
+local cCorner1_5 = Instance.new("UICorner")
+cCorner1_5.CornerRadius = UDim.new(0, 12)
+cCorner1_5.Parent = fovPosContainer
+
+local lockPosTitle = Instance.new("TextLabel")
+lockPosTitle.Size = UDim2.new(1, -210, 1, 0)
+lockPosTitle.Position = UDim2.new(0, 15, 0, 0)
+lockPosTitle.Text = "📌 ล็อคตำแหน่ง FOV"
+lockPosTitle.TextColor3 = Color3.fromRGB(40, 40, 40)
+lockPosTitle.TextSize = 15
+lockPosTitle.Font = Enum.Font.FredokaOne
+lockPosTitle.TextXAlignment = Enum.TextXAlignment.Left
+lockPosTitle.BackgroundTransparency = 1
+lockPosTitle.Parent = fovPosContainer
+
+local setCenterBtn = Instance.new("TextButton")
+setCenterBtn.Size = UDim2.new(0, 85, 0, 30)
+setCenterBtn.Position = UDim2.new(1, -195, 0.5, -15)
+setCenterBtn.Text = "🎯 กลางจอ"
+setCenterBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+setCenterBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+setCenterBtn.Font = Enum.Font.FredokaOne
+setCenterBtn.TextSize = 13
+setCenterBtn.Parent = fovPosContainer
+
+local btnCornerCenter = Instance.new("UICorner")
+btnCornerCenter.CornerRadius = UDim.new(0, 8)
+btnCornerCenter.Parent = setCenterBtn
+
+local toggleLockPosBtn = Instance.new("TextButton")
+toggleLockPosBtn.Size = UDim2.new(0, 90, 0, 30)
+toggleLockPosBtn.Position = UDim2.new(1, -105, 0.5, -15)
+toggleLockPosBtn.Text = "ตามเมาส์"
+toggleLockPosBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleLockPosBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+toggleLockPosBtn.Font = Enum.Font.FredokaOne
+toggleLockPosBtn.TextSize = 14
+toggleLockPosBtn.Parent = fovPosContainer
+
+local btnCornerLockPos = Instance.new("UICorner")
+btnCornerLockPos.CornerRadius = UDim.new(0, 8)
+btnCornerLockPos.Parent = toggleLockPosBtn
+
+-- ปุ่มลอยเปิด/ปิด Uiน้องเปา
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 65, 0, 65)
+toggleButton.Position = UDim2.new(0.05, 0, 0.2, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Text = "🥛"
+toggleButton.TextSize = 34
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = screenGui
+
+local mainBtnCorner = Instance.new("UICorner")
+mainBtnCorner.CornerRadius = UDim.new(1, 0)
+mainBtnCorner.Parent = toggleButton
+
+----------------------------------------------------
+-- 5. ระบบคำนวณและฟังก์ชัน
+----------------------------------------------------
+local function getCurrentFovCenter()
+    if isFovPositionLocked then
+        return lockedFovPosition
+    else
+        return UserInputService:GetMouseLocation()
+    end
+end
+
+-- ฟังก์ชันตรวจสอบสิ่งกีดขวาง (Visible Check / Wall Check)
+local function isVisible(targetPart)
+    local localChar = LocalPlayer.Character
+    if not localChar then return false end
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {localChar, targetPart.Parent}
+    raycastParams.IgnoreWater = true
+
+    local origin = Camera.CFrame.Position
+    local direction = targetPart.Position - origin
+    local result = Workspace:Raycast(origin, direction, raycastParams)
+
+    return result == nil -- ถ้าไม่มีอะไรขวางจะส่งค่า true (มองเห็น)
+end
+
+local function getClosestPlayerInFOV()
+    local closestPlayer = nil
+    local shortestDistance = fovRadius
+    local centerPos = getCurrentFovCenter()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local char = player.Character
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            
+            if humanoid and humanoid.Health > 0 then
+                local targetPart = char:FindFirstChild("Head") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("HumanoidRootPart")
+                
+                -- เช็คทั้งอยู่ในระยะ FOV และไม่มีสิ่งกีดขวาง (ไม่ทะลุกำแพง)
+                if targetPart and isVisible(targetPart) then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                    if onScreen then
+                        local distance = (Vector2.new(screenPos.X, screenPos.Y) - centerPos).Magnitude
+                        if distance < shortestDistance then
+                            shortestDistance = distance
+                            closestPlayer = targetPart
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+----------------------------------------------------
+-- 6. Main Loop
+----------------------------------------------------
+RunService.RenderStepped:Connect(function()
+    local centerPos = getCurrentFovCenter()
+    fovCircle.Position = centerPos
+    fovCircle.Radius = fovRadius
+    fovCircle.Visible = isAimbotEnabled
+
+    if isAimbotEnabled then
+        local targetPart = getClosestPlayerInFOV()
+        if targetPart then
+            local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+            if aimbotSmoothness >= 1.0 then
+                Camera.CFrame = targetCFrame
+            else
+                Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, aimbotSmoothness)
+            end
+        end
+    end
+end)
+
+----------------------------------------------------
+-- 7. ระบบ Event Listener
+----------------------------------------------------
+toggleAimbotBtn.Activated:Connect(function()
+    isAimbotEnabled = not isAimbotEnabled
+    toggleAimbotBtn.Text = isAimbotEnabled and "เปิดอยู่" or "ปิดอยู่"
+    toggleAimbotBtn.BackgroundColor3 = isAimbotEnabled and Color3.fromRGB(60, 200, 100) or Color3.fromRGB(220, 60, 60)
+end)
+
+toggleLockPosBtn.Activated:Connect(function()
+    isFovPositionLocked = not isFovPositionLocked
+    if isFovPositionLocked then
+        lockedFovPosition = UserInputService:GetMouseLocation()
+        toggleLockPosBtn.Text = "ล็อคแล้ว"
+        toggleLockPosBtn.BackgroundColor3 = Color3.fromRGB(60, 200, 100)
+    else
+        toggleLockPosBtn.Text = "ตามเมาส์"
+        toggleLockPosBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+    end
+end)
+
+setCenterBtn.Activated:Connect(function()
+    lockedFovPosition = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    isFovPositionLocked = true
+    toggleLockPosBtn.Text = "ล็อคแล้ว"
+    toggleLockPosBtn.BackgroundColor3 = Color3.fromRGB(60, 200, 100)
+end)
+
+-- Slider FOV Size Logic
+local isDraggingFov = false
+local function updateFovSlider(input)
+    local sliderPos = sliderBg.AbsolutePosition.X
+    local sliderWidth = sliderBg.AbsoluteSize.X
+    local scale = math.clamp((input.Position.X - sliderPos) / sliderWidth, 0, 1)
+    
+    sliderFill.Size = UDim2.new(scale, 0, 1, 0)
+    sliderKnob.Position = UDim2.new(scale, -10, 0.5, -10)
+    
+    fovRadius = math.floor(minFov + (scale * (maxFov - minFov)))
+    titleText.Text = "🎯 วงกลมล็อคเป้า (ขนาด: " .. tostring(fovRadius) .. ")"
+end
+
+sliderKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingFov = true
+    end
+end)
+
+-- Slider Smoothness Speed Logic
+local isDraggingSmooth = false
+local function updateSmoothSlider(input)
+    local sliderPos = smoothSliderBg.AbsolutePosition.X
+    local sliderWidth = smoothSliderBg.AbsoluteSize.X
+    local scale = math.clamp((input.Position.X - sliderPos) / sliderWidth, 0, 1)
+    
+    smoothSliderFill.Size = UDim2.new(scale, 0, 1, 0)
+    smoothSliderKnob.Position = UDim2.new(scale, -10, 0.5, -10)
+    
+    aimbotSmoothness = minSmooth + (scale * (maxSmooth - minSmooth))
+    local percent = math.floor(scale * 100)
+    if percent >= 98 then
+        smoothText.Text = "⚡ ความเร็วการหันกล้อง: 100% (Instant)"
+    else
+        smoothText.Text = "⚡ ความเร็วการหันกล้อง: " .. tostring(percent) .. "% (Smooth)"
+    end
+end
+
+smoothSliderKnob.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingSmooth = true
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if isDraggingFov then
+            updateFovSlider(input)
+        elseif isDraggingSmooth then
+            updateSmoothSlider(input)
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDraggingFov = false
+        isDraggingSmooth = false
+    end
+end)
+
+toggleButton.Activated:Connect(function()
+    mainFrame.Visible = not mainFrame.Visible
+end)
