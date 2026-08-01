@@ -1,0 +1,305 @@
+-- // ==========================================
+-- // ระบบ AUTO FARM (Build A Boat For Treasure)
+-- // ==========================================
+getgenv().TreasureAutoFarm = {
+    Enabled = false,          -- เริ่มต้นเป็น false ให้กดเปิดจาก UI เอง
+    Teleport = 1.3,           -- ปรับความเร็วในการวาปให้ช้าลงกำลังดี (1.3 วินาที) มั่นใจว่าโหลดด่านทันแบบสมบูรณ์ 100%
+    TimeBetweenRuns = 4.5     -- เวลารอเริ่มรอบใหม่หลังจากรับรางวัล
+}
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ฟังก์ชันหลักในการวิ่งฟาร์มแบบวาปความเร็วพอดีๆ
+local function autoFarm(currentRun)
+    local Character = LocalPlayer.Character
+    if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local NormalStages = Workspace:WaitForChild("BoatStages"):WaitForChild("NormalStages")
+
+    -- วาปผ่านด่านต่างๆ ทั้ง 10 ด่านด้วยความเร็วที่เสถียรขึ้น
+    for i = 1, 10 do
+        if not getgenv().TreasureAutoFarm.Enabled then break end
+        local Stage = NormalStages:FindFirstChild("CaveStage" .. i)
+        if Stage then
+            local DarknessPart = Stage:FindFirstChild("DarknessPart")
+            if DarknessPart then
+                Character.HumanoidRootPart.CFrame = DarknessPart.CFrame
+                
+                -- สร้างบล็อกกันตกชั่วคราว
+                local Part = Instance.new("Part", Character)
+                Part.Anchored = true
+                Part.Position = Character.HumanoidRootPart.Position - Vector3.new(0, 6, 0)
+                
+                task.wait(getgenv().TreasureAutoFarm.Teleport)
+                Part:Destroy()
+            end
+        end
+    end
+
+    -- วาปไปที่กล่องสมบัติท้ายแมพเพื่อรับรางวัล
+    while getgenv().TreasureAutoFarm.Enabled do
+        task.wait()
+        if Character and Character:FindFirstChild("HumanoidRootPart") and NormalStages:FindFirstChild("TheEnd") then
+            local chest = NormalStages.TheEnd:FindFirstChild("GoldenChest")
+            if chest and chest:FindFirstChild("Trigger") then
+                Character.HumanoidRootPart.CFrame = chest.Trigger.CFrame
+            end
+        end
+        if Lighting.ClockTime ~= 14 then break end
+    end
+
+    -- รอจนกว่าตัวละครจะเกิดใหม่เพื่อเริ่มรอบถัดไป
+    local Respawned = false
+    local Connection
+    Connection = LocalPlayer.CharacterAdded:Connect(function()
+        Respawned = true
+        Connection:Disconnect()
+    end)
+    
+    repeat task.wait() until Respawned or not getgenv().TreasureAutoFarm.Enabled
+    task.wait(getgenv().TreasureAutoFarm.TimeBetweenRuns)
+end
+
+-- รันลูปออโต้ฟาร์มแบบแยก Thread
+task.spawn(function()
+    local autoFarmRun = 1
+    while task.wait(1) do
+        if getgenv().TreasureAutoFarm.Enabled then
+            pcall(function()
+                autoFarm(autoFarmRun)
+            end)
+            autoFarmRun = autoFarmRun + 1
+        end
+    end
+end)
+
+
+-- // ==========================================
+-- // ระบบ UI น้องเปา (Custom UI & Menu) - ย่อขนาดกะทัดรัด
+-- // ==========================================
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ลบ UI เก่าทิ้งก่อนรันใหม่ (ป้องกันซ้ำซ้อน)
+if playerGui:FindFirstChild("MyCustomUI") then
+    playerGui.MyCustomUI:Destroy()
+end
+
+-- สร้าง ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MyCustomUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- สร้าง Frame (หน้าต่างขนาดกะทัดรัด 360x125)
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 360, 0, 125)
+frame.Position = UDim2.new(0.5, -180, 0.5, -62.5)
+frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 16)
+uiCorner.Parent = frame
+
+-- แถบหัวข้อด้านบน (Header Bar)
+local headerBar = Instance.new("Frame")
+headerBar.Name = "HeaderBar"
+headerBar.Size = UDim2.new(1, 0, 0, 42)
+headerBar.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+headerBar.BorderSizePixel = 0
+headerBar.ZIndex = 2
+headerBar.Parent = frame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 16)
+headerCorner.Parent = headerBar
+
+-- ข้อความชื่อ UI น้องเปา
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -50, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.Text = "🥛 UI น้องเปา - Build A Boat"
+titleLabel.TextColor3 = Color3.fromRGB(40, 40, 40)
+titleLabel.TextSize = 16
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.BackgroundTransparency = 1
+titleLabel.ZIndex = 3
+titleLabel.Parent = headerBar
+
+-- ปุ่มกากบาทปิดสคริปต์ (มุมขวาบนของ Header Bar พร้อม ZIndex สูงสุด)
+local closeScriptButton = Instance.new("TextButton")
+closeScriptButton.Name = "CloseScriptButton"
+closeScriptButton.Size = UDim2.new(0, 32, 0, 32)
+closeScriptButton.Position = UDim2.new(1, -37, 0, 5)
+closeScriptButton.BackgroundColor3 = Color3.fromRGB(235, 87, 87)
+closeScriptButton.Text = "✕"
+closeScriptButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeScriptButton.TextSize = 16
+closeScriptButton.Font = Enum.Font.FredokaOne
+closeScriptButton.ZIndex = 5
+closeScriptButton.Parent = headerBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(1, 0)
+closeCorner.Parent = closeScriptButton
+
+closeScriptButton.MouseButton1Click:Connect(function()
+    getgenv().TreasureAutoFarm.Enabled = false
+    task.wait(0.1)
+    if screenGui then
+        screenGui:Destroy()
+    end
+end)
+
+-- Container สำหรับใส่ปุ่มฟังก์ชั่นภายใน UI
+local container = Instance.new("Frame")
+container.Size = UDim2.new(1, -24, 1, -52)
+container.Position = UDim2.new(0, 12, 0, 46)
+container.BackgroundTransparency = 1
+container.BorderSizePixel = 0
+container.Parent = frame
+
+-- ----------------------------------------------------
+-- ปุ่มที่ 1: เปิด/ปิด ออโต้ฟาร์ม
+-- ----------------------------------------------------
+local farmButton = Instance.new("TextButton")
+farmButton.Name = "FarmButton"
+farmButton.Size = UDim2.new(1, 0, 1, 0)
+farmButton.Position = UDim2.new(0, 0, 0, 0)
+farmButton.BackgroundColor3 = Color3.fromRGB(235, 87, 87) -- สีแดง (ปิดอยู่)
+farmButton.Text = "Auto Farm: ปิดอยู่ ❌"
+farmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+farmButton.TextSize = 16
+farmButton.Font = Enum.Font.FredokaOne
+farmButton.Parent = container
+
+local btnCorner2 = Instance.new("UICorner")
+btnCorner2.CornerRadius = UDim.new(0, 12)
+btnCorner2.Parent = farmButton
+
+farmButton.MouseButton1Click:Connect(function()
+    getgenv().TreasureAutoFarm.Enabled = not getgenv().TreasureAutoFarm.Enabled
+    
+    if getgenv().TreasureAutoFarm.Enabled then
+        farmButton.BackgroundColor3 = Color3.fromRGB(46, 204, 113) -- สีเขียว
+        farmButton.Text = "Auto Farm: เปิดใช้งานแล้ว ✅"
+    else
+        farmButton.BackgroundColor3 = Color3.fromRGB(235, 87, 87) -- สีแดง
+        farmButton.Text = "Auto Farm: ปิดอยู่ ❌"
+    end
+end)
+
+-- ----------------------------------------------------
+-- ปุ่มวงกลมเปิด-ปิด UI (สำหรับมือถือ/จอภาพ)
+-- ----------------------------------------------------
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 55, 0, 55)
+toggleButton.Position = UDim2.new(0.05, 0, 0.2, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Text = "🥛"
+toggleButton.TextSize = 28
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(1, 0)
+btnCorner.Parent = toggleButton
+
+local btnStroke = Instance.new("UIStroke")
+btnStroke.Color = Color3.fromRGB(220, 220, 220)
+btnStroke.Thickness = 2
+btnStroke.Parent = toggleButton
+
+-- ระบบทำให้ปุ่มวงกลมหมุน
+RunService.RenderStepped:Connect(function(deltaTime)
+    if toggleButton and toggleButton.Parent then
+        toggleButton.Rotation = (toggleButton.Rotation + (60 * deltaTime)) % 360
+    end
+end)
+
+-- ระบบลากย้ายหน้าต่างหลัก (MainFrame)
+local function enableDrag(targetElement, moveElement)
+    local dragging = false
+    local dragStart, startPos
+
+    targetElement.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = moveElement.Position
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            moveElement.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+enableDrag(headerBar, frame)
+
+-- ระบบลากปุ่มวงกลม + เปิดปิด UI
+local btnDragging = false
+local btnDragStart, btnStartPos
+local isMoved = false
+
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        btnDragging = true
+        isMoved = false
+        btnDragStart = input.Position
+        btnStartPos = toggleButton.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if btnDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - btnDragStart
+        if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then
+            isMoved = true
+        end
+        toggleButton.Position = UDim2.new(
+            btnStartPos.X.Scale,
+            btnStartPos.X.Offset + delta.X,
+            btnStartPos.Y.Scale,
+            btnStartPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        btnDragging = false
+    end
+end)
+
+toggleButton.Activated:Connect(function()
+    if not isMoved then
+        frame.Visible = not frame.Visible
+    end
+end)
