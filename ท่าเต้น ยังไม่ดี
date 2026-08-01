@@ -1,0 +1,207 @@
+-- ==========================================
+-- SCRIPT สำหรับ Delta (Ultimate Force Animation Fix)
+-- ==========================================
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ลบ UI เก่าทิ้งกันซ้อน
+if playerGui:FindFirstChild("MyCustomUI") then
+    playerGui.MyCustomUI:Destroy()
+end
+
+-- 1. สร้าง ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MyCustomUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- 2. สร้าง Frame (หน้าต่างหลัก)
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 500, 0, 380)
+frame.Position = UDim2.new(0.5, -250, 0.5, -190)
+frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+frame.BorderSizePixel = 0
+frame.Visible = false
+frame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 18)
+uiCorner.Parent = frame
+
+-- 3. แถบหัวข้อด้านบน
+local headerBar = Instance.new("Frame")
+headerBar.Name = "HeaderBar"
+headerBar.Size = UDim2.new(1, 0, 0, 55)
+headerBar.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+headerBar.BorderSizePixel = 0
+headerBar.Parent = frame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 18)
+headerCorner.Parent = headerBar
+
+-- 4. ข้อความชื่อ UI
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -20, 1, 0)
+titleLabel.Position = UDim2.new(0, 20, 0, 0)
+titleLabel.Text = "🥛 UI น้องเปา (Force Play Fix)"
+titleLabel.TextColor3 = Color3.fromRGB(40, 40, 40)
+titleLabel.TextSize = 19
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.BackgroundTransparency = 1
+titleLabel.Parent = headerBar
+
+-- 5. ScrollingFrame (รายการท่าเต้น)
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Name = "EmoteList"
+scrollingFrame.Size = UDim2.new(1, -30, 1, -80)
+scrollingFrame.Position = UDim2.new(0, 15, 0, 65)
+scrollingFrame.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+scrollingFrame.BackgroundTransparency = 0.5
+scrollingFrame.BorderSizePixel = 0
+scrollingFrame.Parent = frame
+
+local listCorner = Instance.new("UICorner")
+listCorner.CornerRadius = UDim.new(0, 10)
+listCorner.Parent = scrollingFrame
+
+local uiListLayout = Instance.new("UIListLayout")
+uiListLayout.Parent = scrollingFrame
+uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+uiListLayout.Padding = UDim.new(0, 6)
+
+-- รายชื่อท่าเต้น 55 ท่า
+local emotes = {
+    {name = "1. Classic Dance 1", id = "rbxassetid://507771019"},
+    {name = "2. Classic Dance 2", id = "rbxassetid://507771955"},
+    {name = "3. Classic Dance 3", id = "rbxassetid://507772104"},
+    {name = "4. Bust A Move", id = "rbxassetid://3338011243"},
+    {name = "5. Cat Walk", id = "rbxassetid://3338013220"},
+    {name = "6. Robot Dance", id = "rbxassetid://3338035111"},
+    {name = "7. Stadium Wave", id = "rbxassetid://3576716757"},
+    {name = "8. Air Guitar", id = "rbxassetid://4583437117"},
+    {name = "9. Band Jam", id = "rbxassetid://4583439482"},
+    {name = "10. Party Dance", id = "rbxassetid://4583464791"},
+    {name = "11. Twist Dance", id = "rbxassetid://4583484898"},
+    {name = "12. Fast Spin", id = "rbxassetid://4583450259"},
+    {name = "13. Ninja Move", id = "rbxassetid://3338029278"},
+    {name = "14. Heroic Pose", id = "rbxassetid://3338021155"},
+    {name = "15. Zombie Walk", id = "rbxassetid://3338050478"},
+    {name = "16. Telekinesis", id = "rbxassetid://3338044738"},
+    {name = "17. Bodacious Groove", id = "rbxassetid://3338009214"},
+    {name = "18. Arm Wave", id = "rbxassetid://3338006795"},
+    {name = "19. Free Fall", id = "rbxassetid://4583447551"},
+    {name = "20. Hooray Jump", id = "rbxassetid://4583453222"},
+    {name = "21. Pose One", id = "rbxassetid://4583467431"},
+    {name = "22. Pose Two", id = "rbxassetid://4583470129"},
+    {name = "23. Victory Dance", id = "rbxassetid://4583488016"},
+    {name = "24. Thinker", id = "rbxassetid://4583481858"},
+    {name = "25. Stretch", id = "rbxassetid://4583475893"},
+    {name = "26. Sweep Floor", id = "rbxassetid://4583478985"},
+    {name = "27. Rest Relax", id = "rbxassetid://4583472714"},
+    {name = "28. Match Point", id = "rbxassetid://4583461975"},
+    {name = "29. Leaf Spin", id = "rbxassetid://4583459142"},
+    {name = "30. Jump Style", id = "rbxassetid://4583456314"},
+    {name = "31. Face Plant", id = "rbxassetid://4583444588"},
+    {name = "32. Stadium Cheer", id = "rbxassetid://4583441655"},
+    {name = "33. Sleepy Head", id = "rbxassetid://3576711904"},
+    {name = "34. Snore Sound", id = "rbxassetid://3576713360"},
+    {name = "35. Tilt Move 2", id = "rbxassetid://3576715053"},
+    {name = "36. Lurk Style", id = "rbxassetid://3576710476"},
+    {name = "37. Wah Cry", id = "rbxassetid://3338048185"},
+    {name = "38. Tilt Move", id = "rbxassetid://3338046424"},
+    {name = "39. Tantrum", id = "rbxassetid://3338042587"},
+    {name = "40. Stadium Style", id = "rbxassetid://3338040716"},
+    {name = "41. Shrug Dance", id = "rbxassetid://3338038754"},
+    {name = "42. Salute Move", id = "rbxassetid://3338036763"},
+    {name = "43. Relieved", id = "rbxassetid://3338033230"},
+    {name = "44. Perplexed", id = "rbxassetid://3338031174"},
+    {name = "45. Laughing Loud", id = "rbxassetid://3338027151"},
+    {name = "46. Karate Chop", id = "rbxassetid://3338024950"},
+    {name = "47. Judgemental", id = "rbxassetid://3338023163"},
+    {name = "48. Facepalm", id = "rbxassetid://3338019035"},
+    {name = "49. Disdain Look", id = "rbxassetid://3338017216"},
+    {name = "50. Confused", id = "rbxassetid://3338015112"},
+    {name = "51. Karate 2", id = "rbxassetid://3576708451"},
+    {name = "52. Crazy Spin", id = "rbxassetid://3576706212"},
+    {name = "53. Funky Move", id = "rbxassetid://3576704123"},
+    {name = "54. Groove Dance", id = "rbxassetid://3576702014"},
+    {name = "55. Ultimate Party", id = "rbxassetid://3576699890"}
+}
+
+-- ฟังก์ชันบังคับเล่นท่าแบบทะลวงระบบ (Force Play)
+local function playEmote(animId)
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    
+    local animator = humanoid:FindFirstChildOfClass("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = humanoid
+    end
+    
+    -- เคลียร์ท่าเก่าที่ค้างอยู่ทั้งหมดทันที
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+        track:Stop()
+    end
+    
+    -- ใช้ pcall เพื่อป้องกันโค้ดเด้ง error เวลาไอดีไหนถูกบล็อกสิทธิ์
+    pcall(function()
+        local anim = Instance.new("Animation")
+        anim.AnimationId = animId
+        
+        local track = animator:LoadAnimation(anim)
+        if track then
+            track.Priority = Enum.AnimationPriority.Action4
+            track.Looped = true
+            track:Play()
+        end
+    end)
+end
+
+-- สร้างปุ่มรายการท่าเต้น
+for _, emote in ipairs(emotes) do
+    local emoteBtn = Instance.new("TextButton")
+    emoteBtn.Size = UDim2.new(1, -10, 0, 38)
+    emoteBtn.BackgroundColor3 = Color3.fromRGB(142, 68, 173)
+    emoteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    emoteBtn.Text = emote.name
+    emoteBtn.TextSize = 14
+    emoteBtn.Font = Enum.Font.SourceSansBold
+    emoteBtn.Parent = scrollingFrame
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = emoteBtn
+    
+    emoteBtn.MouseButton1Click:Connect(function()
+        playEmote(emote.id)
+    end)
+end
+
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, #emotes * 44)
+
+-- 6. ปุ่มเปิด-ปิด UI วงกลม
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 60, 0, 60)
+toggleButton.Position = UDim2.new(0.05, 0, 0.2, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Text = "🥛"
+toggleButton.TextSize = 30
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(1, 0)
+btnCorner.Parent = toggleButton
+
+toggleButton.MouseButton1Click:Connect(function()
+    frame.Visible = not frame.Visible
+end)
