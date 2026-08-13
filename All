@@ -1,0 +1,934 @@
+-- UI น้องเปา V3.8 - Ultimate Control & Super Fling 2s Billion Power Edition
+-- Fixed God-Mode Safe Return, Multi-Frame Sync, and Void Death Prevention
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local camera = Workspace.CurrentCamera
+
+Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	camera = Workspace.CurrentCamera
+end)
+
+local character, humanoid, root
+
+local function updateChar(char)
+	character = char
+	humanoid = char:WaitForChild("Humanoid", 5)
+	root = char:WaitForChild("HumanoidRootPart", 5)
+end
+
+if player.Character then
+	updateChar(player.Character)
+end
+player.CharacterAdded:Connect(updateChar)
+
+-- Controls Module
+local Controls
+pcall(function()
+	local PlayerModule = require(player.PlayerScripts:WaitForChild("PlayerModule"))
+	Controls = PlayerModule:GetControls()
+end)
+
+-- Status Variables
+local flying = false
+local noclip = false
+local soulOut = false
+local wallWalk = false
+local infiniteJump = false
+local showESP = false
+local showHitbox = false
+
+local flinging = false
+local flingConnection
+local targetPlayer = nil
+local originalCFrame = nil
+
+local speed = 60
+local walkSpeedVal = 16
+local jumpPower = 50
+local hitboxSize = 12
+
+local flyVel, flyAlign, wallVel
+local soulCam
+local originalSizes = {}
+
+-- ESP Folder Cleanup
+local espFolder = playerGui:FindFirstChild("NongPaoESP_V38") or Instance.new("Folder")
+espFolder.Name = "NongPaoESP_V38"
+espFolder.Parent = playerGui
+
+----------------------------------------------------
+-- GUI CREATION
+----------------------------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "NongPaoUI_V38"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = playerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 500, 0, 460)
+frame.Position = UDim2.new(0.5, -250, 0.5, -230)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 45)
+header.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+header.BorderSizePixel = 0
+header.Parent = frame
+Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -50, 1, 0)
+title.Position = UDim2.new(0, 15, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "🥛 UI น้องเปา V3.8 (God-Mode Safe Fling 2s)"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 15
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -36, 0.5, -14)
+closeBtn.BackgroundColor3 = Color3.fromRGB(235, 60, 60)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 14
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = header
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
+
+closeBtn.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+	espFolder:Destroy()
+end)
+
+local function createBtn(txt, posY, color)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 210, 0, 34)
+	btn.Position = UDim2.new(0, 15, 0, posY)
+	btn.BackgroundColor3 = color
+	btn.Text = txt
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.TextSize = 13
+	btn.Font = Enum.Font.GothamBold
+	btn.Parent = frame
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+	return btn
+end
+
+local flyBtn    = createBtn("บิน (Fly): ปิด", 60, Color3.fromRGB(210, 70, 70))
+local noclipBtn = createBtn("เดินทะลุ (Noclip): ปิด", 102, Color3.fromRGB(210, 70, 70))
+local soulBtn   = createBtn("ถอดจิตล่องหน: ปิด", 144, Color3.fromRGB(210, 70, 70))
+local wallBtn   = createBtn("ไต่กำแพง (Spider): ปิด", 186, Color3.fromRGB(210, 70, 70))
+local jumpBtn   = createBtn("กระโดดไม่อั้น: ปิด", 228, Color3.fromRGB(210, 70, 70))
+local espBtn    = createBtn("มองทะลุ (ESP): ปิด", 270, Color3.fromRGB(210, 70, 70))
+local hitboxBtn = createBtn("ขยาย Hitbox: ปิด", 312, Color3.fromRGB(210, 70, 70))
+
+local function createInputGroup(labelText, posY, defaultVal)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(0, 220, 0, 18)
+	lbl.Position = UDim2.new(0, 250, 0, posY)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = labelText
+	lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+	lbl.TextSize = 13
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = frame
+
+	local box = Instance.new("TextBox")
+	box.Size = UDim2.new(0, 110, 0, 32)
+	box.Position = UDim2.new(0, 250, 0, posY + 22)
+	box.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+	box.Text = tostring(defaultVal)
+	box.TextColor3 = Color3.fromRGB(255, 255, 255)
+	box.TextSize = 14
+	box.Font = Enum.Font.GothamBold
+	box.Parent = frame
+	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 80, 0, 32)
+	btn.Position = UDim2.new(0, 370, 0, posY + 22)
+	btn.BackgroundColor3 = Color3.fromRGB(0, 140, 240)
+	btn.Text = "ตกลง"
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.TextSize = 13
+	btn.Font = Enum.Font.GothamBold
+	btn.Parent = frame
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+	return box, btn
+end
+
+local speedBox, applySpeed       = createInputGroup("ความเร็วบิน", 60, speed)
+local walkBox, applyWalk         = createInputGroup("ความเร็วเดิน (WalkSpeed)", 125, walkSpeedVal)
+local jumpBox, applyJump         = createInputGroup("ความสูงการกระโดด", 190, jumpPower)
+local hitboxBox, applyHitbox     = createInputGroup("ขนาด Hitbox ศัตรู", 255, hitboxSize)
+
+----------------------------------------------------
+-- PLAYER TARGET & WARP / FLING FRAME
+----------------------------------------------------
+local warpFrame = Instance.new("Frame")
+warpFrame.Size = UDim2.new(0, 220, 0, 460)
+warpFrame.Position = UDim2.new(1, 10, 0, 0)
+warpFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+warpFrame.BorderSizePixel = 0
+warpFrame.Parent = frame
+Instance.new("UICorner", warpFrame).CornerRadius = UDim.new(0, 12)
+
+local warpHeader = Instance.new("Frame")
+warpHeader.Size = UDim2.new(1, 0, 0, 45)
+warpHeader.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+warpHeader.BorderSizePixel = 0
+warpHeader.Parent = warpFrame
+Instance.new("UICorner", warpHeader).CornerRadius = UDim.new(0, 12)
+
+local warpTitle = Instance.new("TextLabel")
+warpTitle.Size = UDim2.new(1, 0, 1, 0)
+warpTitle.BackgroundTransparency = 1
+warpTitle.Text = "🎯 จัดการผู้เล่น / ปริ้วมหาโหด"
+warpTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+warpTitle.TextSize = 14
+warpTitle.Font = Enum.Font.GothamBold
+warpTitle.Parent = warpHeader
+
+local refreshBtn = Instance.new("TextButton")
+refreshBtn.Size = UDim2.new(0.9, 0, 0, 28)
+refreshBtn.Position = UDim2.new(0.05, 0, 0, 52)
+refreshBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 240)
+refreshBtn.Text = "🔄 รีเฟรชรายชื่อ"
+refreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+refreshBtn.TextSize = 12
+refreshBtn.Font = Enum.Font.GothamBold
+refreshBtn.Parent = warpFrame
+Instance.new("UICorner", refreshBtn).CornerRadius = UDim.new(0, 6)
+
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(0.9, 0, 0, 220)
+scroll.Position = UDim2.new(0.05, 0, 0, 85)
+scroll.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 4
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.Parent = warpFrame
+Instance.new("UICorner", scroll).CornerRadius = UDim.new(0, 6)
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.SortOrder = Enum.SortOrder.Name
+listLayout.Padding = UDim.new(0, 4)
+listLayout.Parent = scroll
+
+local selectedLabel = Instance.new("TextLabel")
+selectedLabel.Size = UDim2.new(0.9, 0, 0, 20)
+selectedLabel.Position = UDim2.new(0.05, 0, 0, 310)
+selectedLabel.BackgroundTransparency = 1
+selectedLabel.Text = "ยังไม่ได้เลือกคน"
+selectedLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+selectedLabel.TextSize = 11
+selectedLabel.Font = Enum.Font.Gotham
+selectedLabel.Parent = warpFrame
+
+local tpTargetBtn = Instance.new("TextButton")
+tpTargetBtn.Size = UDim2.new(0.9, 0, 0, 30)
+tpTargetBtn.Position = UDim2.new(0.05, 0, 0, 335)
+tpTargetBtn.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
+tpTargetBtn.Text = "🚀 วาปไปหาคนนี้"
+tpTargetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+tpTargetBtn.TextSize = 12
+tpTargetBtn.Font = Enum.Font.GothamBold
+tpTargetBtn.Parent = warpFrame
+Instance.new("UICorner", tpTargetBtn).CornerRadius = UDim.new(0, 6)
+
+local flingBtn = Instance.new("TextButton")
+flingBtn.Size = UDim2.new(0.9, 0, 0, 34)
+flingBtn.Position = UDim2.new(0.05, 0, 0, 372)
+flingBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+flingBtn.Text = "💥 ปริ้วคนนี้ (Fling 2B Power)"
+flingBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+flingBtn.TextSize = 12
+flingBtn.Font = Enum.Font.GothamBold
+flingBtn.Parent = warpFrame
+Instance.new("UICorner", flingBtn).CornerRadius = UDim.new(0, 6)
+
+-- ข้อความแจ้งเตือนความเสี่ยงการใช้งาน Fling
+local warningLabel = Instance.new("TextLabel")
+warningLabel.Size = UDim2.new(0.9, 0, 0, 42)
+warningLabel.Position = UDim2.new(0.05, 0, 0, 410)
+warningLabel.BackgroundTransparency = 1
+warningLabel.Text = "⚠️ คำเตือน: การใช้งานฟังก์ชันปริ้ว (Fling) มีความเสี่ยงที่ตัวละครของคุณจะแรงปะทะจนเสียชีวิตได้!"
+warningLabel.TextColor3 = Color3.fromRGB(255, 110, 110)
+warningLabel.TextSize = 10
+warningLabel.Font = Enum.Font.GothamBold
+warningLabel.TextWrapped = true
+warningLabel.Parent = warpFrame
+
+----------------------------------------------------
+-- PERFECT GOD-MODE SAFE RETURN FLING LOGIC (2 SECONDS)
+----------------------------------------------------
+local function stopFling()
+	if not flinging then return end
+	flinging = false
+
+	if flingConnection then
+		flingConnection:Disconnect()
+		flingConnection = nil
+	end
+
+	if character and root and humanoid then
+		-- 1. Anchor ทันทีเพื่อหยุดฟิสิกส์ทั้งหมดชั่วคราว
+		root.Anchored = true
+
+		-- 2. ย้ายตัวละครกลับตำแหน่งเดิมอย่างปลอดภัย (ยอยสูงขึ้นนิดหน่อยเพื่อป้องกันติดพื้น)
+		if originalCFrame then
+			character:PivotTo(originalCFrame + Vector3.new(0, 3, 0))
+			originalCFrame = nil
+		end
+
+		-- 3. เคลียร์ค่าความเร็วและแรงเหวี่ยงตกค้างของทุก Part ในตัวละคร
+		for _, part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.AssemblyLinearVelocity = Vector3.zero
+				part.AssemblyAngularVelocity = Vector3.zero
+				part.Velocity = Vector3.zero
+				part.RotVelocity = Vector3.zero
+				part.CanTouch = false
+				part.CanCollide = false
+			end
+		end
+
+		-- 4. Multi-Frame Physics Flush Loop (หน่วงเวลาล้างค่าความเร็ว 8 เฟรม ให้ Server และ Engine ปรับตัว)
+		task.spawn(function()
+			for i = 1, 8 do
+				RunService.Heartbeat:Wait()
+				if character and root then
+					for _, part in ipairs(character:GetDescendants()) do
+						if part:IsA("BasePart") then
+							part.AssemblyLinearVelocity = Vector3.zero
+							part.AssemblyAngularVelocity = Vector3.zero
+							part.CanTouch = false
+							part.CanCollide = false
+						end
+					end
+				end
+			end
+
+			-- 5. คืนค่าการชนและสถานะตัวละครอย่างปลอดภัย 100% ไม่ให้ตัวตาย
+			if character and root and humanoid and humanoid.Health > 0 then
+				for _, part in ipairs(character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = true
+						part.CanTouch = true
+					end
+				end
+
+				root.Anchored = false
+				humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end
+		end)
+	end
+
+	flingBtn.Text = "💥 ปริ้วคนนี้ (Fling 2B Power)"
+	flingBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+end
+
+local function startFling(target)
+	if flinging or not root or not target or not target.Character then return end
+	local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
+	if not targetRoot or not humanoid or humanoid.Health <= 0 then return end
+
+	flinging = true
+	originalCFrame = root.CFrame -- บันทึกตำแหน่งก่อนวาปไปปั่น
+
+	-- ปิดการตายฝั่ง Client ชั่วคราวเพื่อป้องกันการกระแทกแล้วล้มตาย
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+
+	flingBtn.Text = "💥 กำลังอัดแรง 2 พันล้าน (2 วิ)..."
+	flingBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+
+	local startTime = os.clock()
+	local angle = 0
+	local flingPower = 2000000000 -- แรงอัดมหาศาล 2,000,000,000
+
+	flingConnection = RunService.PostSimulation:Connect(function()
+		if not flinging or not root or not root.Parent or not targetRoot or not targetRoot.Parent or not humanoid or humanoid.Health <= 0 then
+			stopFling()
+			return
+		end
+
+		-- ปิด Collision & Touch ชั่วคราว ป้องกันการโดน KillBrick หรือแรงสะท้อนกระแทกตัวตาย
+		for _, part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = false
+				part.CanTouch = false
+			end
+		end
+
+		-- ตรวจสอบระยะความสูง ป้องกันการตกหลุด FallenPartsDestroyHeight ของแมพ
+		local minSafeY = Workspace.FallenPartsDestroyHeight + 100
+		if root.Position.Y <= minSafeY or targetRoot.Position.Y <= minSafeY then
+			stopFling()
+			return
+		end
+
+		-- หมุนปั่น CFrame แนบติดตัวเป้าหมายอย่างสมบูรณ์
+		angle = (angle + 100) % 360
+		local offset = Vector3.new(
+			math.sin(angle) * 0.05,
+			(math.random() - 0.5) * 0.1,
+			math.cos(angle) * 0.05
+		)
+
+		local newCFrame = targetRoot.CFrame * CFrame.new(offset) * CFrame.Angles(
+			math.rad(math.random(-180, 180)),
+			math.rad(math.random(-180, 180)),
+			math.rad(math.random(-180, 180))
+		)
+		character:PivotTo(newCFrame)
+
+		-- อัดแรงเหวี่ยง 2 พันล้านส่งเป้าหมายให้บินกระเด็น
+		root.AssemblyLinearVelocity = Vector3.new(
+			(math.random() - 0.5) * flingPower,
+			flingPower,
+			(math.random() - 0.5) * flingPower
+		)
+		root.AssemblyAngularVelocity = Vector3.new(flingPower, flingPower, flingPower)
+
+		-- ปั่นเต็มกำลัง 2.0 วินาทีแล้วทำการดึงกลับตำแหน่งเดิมอย่างปลอดภัย
+		if os.clock() - startTime > 2.0 then
+			stopFling()
+		end
+	end)
+end
+
+flingBtn.MouseButton1Click:Connect(function()
+	if flinging then
+		stopFling()
+	else
+		if targetPlayer then
+			startFling(targetPlayer)
+		else
+			selectedLabel.Text = "กรุณาเลือกผู้เล่นก่อน!"
+			selectedLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+		end
+	end
+end)
+
+tpTargetBtn.MouseButton1Click:Connect(function()
+	if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") and character then
+		local tRoot = targetPlayer.Character.HumanoidRootPart
+		character:PivotTo(tRoot.CFrame * CFrame.new(0, 3, 0))
+	else
+		selectedLabel.Text = "กรุณาเลือกผู้เล่นก่อน!"
+		selectedLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+	end
+end)
+
+----------------------------------------------------
+-- PLAYER LIST UPDATER
+----------------------------------------------------
+local function clearPlayerList()
+	for _, child in ipairs(scroll:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+end
+
+local function refreshPlayerList()
+	clearPlayerList()
+	local ySize = 0
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= player then
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(1, -8, 0, 28)
+			btn.BackgroundColor3 = (targetPlayer == plr) and Color3.fromRGB(0, 140, 100) or Color3.fromRGB(45, 45, 55)
+			btn.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.TextSize = 11
+			btn.Font = Enum.Font.Gotham
+			btn.Parent = scroll
+			Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
+
+			btn.MouseButton1Click:Connect(function()
+				targetPlayer = plr
+				selectedLabel.Text = "เลือกแล้ว: " .. plr.Name
+				selectedLabel.TextColor3 = Color3.fromRGB(80, 255, 120)
+
+				for _, other in ipairs(scroll:GetChildren()) do
+					if other:IsA("TextButton") then
+						other.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+					end
+				end
+				btn.BackgroundColor3 = Color3.fromRGB(0, 140, 100)
+			end)
+
+			ySize = ySize + 32
+		end
+	end
+	scroll.CanvasSize = UDim2.new(0, 0, 0, ySize)
+end
+
+refreshBtn.MouseButton1Click:Connect(refreshPlayerList)
+task.defer(refreshPlayerList)
+
+Players.PlayerAdded:Connect(function()
+	task.wait(0.5)
+	refreshPlayerList()
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+	task.wait(0.2)
+	refreshPlayerList()
+	if targetPlayer == plr then
+		targetPlayer = nil
+		selectedLabel.Text = "ยังไม่ได้เลือกคน"
+		selectedLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+	end
+end)
+
+----------------------------------------------------
+-- HELPER: GET INPUT VECTOR
+----------------------------------------------------
+local function getRawInputVector()
+	if Controls then
+		local cVec = Controls:GetMoveVector()
+		if cVec and cVec.Magnitude > 0.05 then
+			return Vector3.new(cVec.X, 0, cVec.Z)
+		end
+	end
+
+	local x, z = 0, 0
+	if UserInputService:IsKeyDown(Enum.KeyCode.W) then z = z - 1 end
+	if UserInputService:IsKeyDown(Enum.KeyCode.S) then z = z + 1 end
+	if UserInputService:IsKeyDown(Enum.KeyCode.A) then x = x - 1 end
+	if UserInputService:IsKeyDown(Enum.KeyCode.D) then x = x + 1 end
+
+	if x == 0 and z == 0 and humanoid and humanoid.MoveDirection.Magnitude > 0.05 then
+		local localDir = camera.CFrame:VectorToObjectSpace(humanoid.MoveDirection)
+		return Vector3.new(localDir.X, 0, localDir.Z)
+	end
+
+	return Vector3.new(x, z)
+end
+
+local function getCameraRelativeMove()
+	local inputVec = getRawInputVector()
+	local y = 0
+
+	if UserInputService:IsKeyDown(Enum.KeyCode.Space) then y = y + 1 end
+	if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then y = y - 1 end
+
+	if inputVec.Magnitude > 0.05 or y ~= 0 then
+		local worldDir = camera.CFrame:VectorToWorldSpace(inputVec) + Vector3.new(0, y, 0)
+		return worldDir
+	end
+
+	return Vector3.zero
+end
+
+----------------------------------------------------
+-- CORE FUNCTIONS
+----------------------------------------------------
+local function stopFly()
+	flying = false
+	if flyVel then flyVel:Destroy() flyVel = nil end
+	if flyAlign then flyAlign:Destroy() flyAlign = nil end
+	if root and root:FindFirstChild("FlyAttachment") then root.FlyAttachment:Destroy() end
+	if humanoid then humanoid.PlatformStand = false end
+	flyBtn.Text = "บิน (Fly): ปิด"
+	flyBtn.BackgroundColor3 = Color3.fromRGB(210, 70, 70)
+end
+
+local function startFly()
+	if flying or not root then return end
+	flying = true
+
+	local att = Instance.new("Attachment")
+	att.Name = "FlyAttachment"
+	att.Parent = root
+
+	flyVel = Instance.new("LinearVelocity")
+	flyVel.MaxForce = 9e9
+	flyVel.VectorVelocity = Vector3.zero
+	flyVel.Attachment0 = att
+	flyVel.RelativeTo = Enum.ActuatorRelativeTo.World
+	flyVel.Parent = root
+
+	flyAlign = Instance.new("AlignOrientation")
+	flyAlign.MaxTorque = 9e9
+	flyAlign.Responsiveness = 200
+	flyAlign.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	flyAlign.Attachment0 = att
+	flyAlign.Parent = root
+
+	if humanoid then humanoid.PlatformStand = true end
+	flyBtn.Text = "บิน (Fly): เปิด"
+	flyBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 90)
+end
+
+local function toggleNoclip()
+	noclip = not noclip
+	noclipBtn.Text = noclip and "เดินทะลุ (Noclip): เปิด" or "เดินทะลุ (Noclip): ปิด"
+	noclipBtn.BackgroundColor3 = noclip and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(210, 70, 70)
+end
+
+local function toggleSoulOut()
+	soulOut = not soulOut
+	soulBtn.Text = soulOut and "ถอดจิตล่องหน: เปิด" or "ถอดจิตล่องหน: ปิด"
+	soulBtn.BackgroundColor3 = soulOut and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(210, 70, 70)
+
+	if soulOut then
+		if root then
+			soulCam = Instance.new("Part")
+			soulCam.Size = Vector3.new(1, 1, 1)
+			soulCam.Transparency = 1
+			soulCam.CanCollide = false
+			soulCam.Anchored = true
+			soulCam.CFrame = root.CFrame
+			soulCam.Parent = Workspace
+			
+			camera.CameraSubject = soulCam
+			root.Anchored = true
+		end
+	else
+		if soulCam then soulCam:Destroy() soulCam = nil end
+		if root then root.Anchored = false end
+		if humanoid then camera.CameraSubject = humanoid end
+	end
+end
+
+local function toggleWallWalk()
+	wallWalk = not wallWalk
+	wallBtn.Text = wallWalk and "ไต่กำแพง (Spider): เปิด" or "ไต่กำแพง (Spider): ปิด"
+	wallBtn.BackgroundColor3 = wallWalk and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(210, 70, 70)
+	
+	if not wallWalk and wallVel then
+		wallVel:Destroy()
+		wallVel = nil
+	end
+end
+
+local function toggleInfiniteJump()
+	infiniteJump = not infiniteJump
+	jumpBtn.Text = infiniteJump and "กระโดดไม่อั้น: เปิด" or "กระโดดไม่อั้น: ปิด"
+	jumpBtn.BackgroundColor3 = infiniteJump and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(210, 70, 70)
+end
+
+local function clearESP()
+	espFolder:ClearAllChildren()
+end
+
+local function createESP(plr)
+	if plr == player then return end
+	local char = plr.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hrp or not hum then return end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = plr.Name .. "_ESP_Highlight"
+	highlight.Adornee = char
+	highlight.FillColor = Color3.fromRGB(255, 50, 50)
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+	highlight.FillTransparency = 0.5
+	highlight.Parent = espFolder
+
+	local bill = Instance.new("BillboardGui")
+	bill.Name = plr.Name .. "_ESP_Bill"
+	bill.Adornee = hrp
+	bill.Size = UDim2.new(0, 150, 0, 40)
+	bill.StudsOffset = Vector3.new(0, 3.5, 0)
+	bill.AlwaysOnTop = true
+	bill.Parent = espFolder
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, 0, 1, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	lbl.TextStrokeTransparency = 0
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 12
+	lbl.Parent = bill
+
+	local conn
+	conn = RunService.RenderStepped:Connect(function()
+		if showESP and highlight.Parent and hum and hum.Parent then
+			lbl.Text = plr.Name .. "\nHP: " .. math.floor(hum.Health) .. "/" .. math.floor(hum.MaxHealth)
+		else
+			conn:Disconnect()
+			highlight:Destroy()
+			bill:Destroy()
+		end
+	end)
+end
+
+local function toggleESP()
+	showESP = not showESP
+	espBtn.Text = showESP and "มองทะลุ (ESP): เปิด" or "มองทะลุ (ESP): ปิด"
+	espBtn.BackgroundColor3 = showESP and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(210, 70, 70)
+	clearESP()
+	if showESP then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			createESP(plr)
+		end
+	end
+end
+
+local function resetHitboxes()
+	for plr, size in pairs(originalSizes) do
+		if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			local hrp = plr.Character.HumanoidRootPart
+			hrp.Size = size
+			hrp.Transparency = 1
+			hrp.CanCollide = true
+		end
+	end
+	table.clear(originalSizes)
+end
+
+local function toggleHitbox()
+	showHitbox = not showHitbox
+	hitboxBtn.Text = showHitbox and "ขยาย Hitbox: เปิด" or "ขยาย Hitbox: ปิด"
+	hitboxBtn.BackgroundColor3 = showHitbox and Color3.fromRGB(0, 170, 90) or Color3.fromRGB(210, 70, 70)
+	if not showHitbox then
+		resetHitboxes()
+	end
+end
+
+----------------------------------------------------
+-- BUTTON CONNECTS
+----------------------------------------------------
+flyBtn.MouseButton1Click:Connect(function()
+	if flying then stopFly() else startFly() end
+end)
+noclipBtn.MouseButton1Click:Connect(toggleNoclip)
+soulBtn.MouseButton1Click:Connect(toggleSoulOut)
+wallBtn.MouseButton1Click:Connect(toggleWallWalk)
+jumpBtn.MouseButton1Click:Connect(toggleInfiniteJump)
+espBtn.MouseButton1Click:Connect(toggleESP)
+hitboxBtn.MouseButton1Click:Connect(toggleHitbox)
+
+applySpeed.MouseButton1Click:Connect(function()
+	local val = tonumber(speedBox.Text)
+	if val then speed = math.clamp(val, 1, 500) end
+end)
+
+applyWalk.MouseButton1Click:Connect(function()
+	local val = tonumber(walkBox.Text)
+	if val and humanoid then
+		walkSpeedVal = math.clamp(val, 1, 500)
+		humanoid.WalkSpeed = walkSpeedVal
+	end
+end)
+
+applyJump.MouseButton1Click:Connect(function()
+	local val = tonumber(jumpBox.Text)
+	if val and humanoid then
+		jumpPower = math.clamp(val, 1, 500)
+		humanoid.UseJumpPower = true
+		humanoid.JumpPower = jumpPower
+	end
+end)
+
+applyHitbox.MouseButton1Click:Connect(function()
+	local val = tonumber(hitboxBox.Text)
+	if val then hitboxSize = math.clamp(val, 2, 100) end
+end)
+
+----------------------------------------------------
+-- SMOOTH MOVEMENT & TICK LOOPS
+----------------------------------------------------
+RunService.RenderStepped:Connect(function(dt)
+	if not character or not root or not humanoid then return end
+
+	if flying and flyVel and flyAlign then
+		local moveDir = getCameraRelativeMove()
+		if moveDir.Magnitude > 0 then
+			flyVel.VectorVelocity = moveDir.Unit * speed
+		else
+			flyVel.VectorVelocity = Vector3.zero
+		end
+		flyAlign.CFrame = camera.CFrame
+	end
+
+	if soulOut and soulCam then
+		local moveDir = getCameraRelativeMove()
+		soulCam.CFrame = soulCam.CFrame + (moveDir * speed * dt)
+	end
+end)
+
+RunService.Stepped:Connect(function()
+	if not character or not root or not humanoid then return end
+
+	if humanoid.WalkSpeed ~= walkSpeedVal and walkSpeedVal ~= 16 then
+		humanoid.WalkSpeed = walkSpeedVal
+	end
+
+	if noclip then
+		for _, part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = false
+			end
+		end
+	end
+
+	if showHitbox then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+				local hrp = plr.Character.HumanoidRootPart
+				if not originalSizes[plr] then
+					originalSizes[plr] = hrp.Size
+				end
+				hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+				hrp.Transparency = 0.7
+				hrp.Color = Color3.fromRGB(255, 0, 100)
+				hrp.Material = Enum.Material.ForceField
+				hrp.CanCollide = false
+			end
+		end
+	end
+
+	if wallWalk and not flying then
+		local rayParams = RaycastParams.new()
+		rayParams.FilterDescendantsInstances = {character}
+		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+		local rayResult = Workspace:Raycast(root.Position, root.CFrame.LookVector * 4, rayParams) 
+			or Workspace:Raycast(root.Position, camera.CFrame.LookVector * 4, rayParams)
+
+		if rayResult then
+			if not wallVel then
+				wallVel = Instance.new("BodyVelocity")
+				wallVel.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+				wallVel.Parent = root
+			end
+			local verticalMove = 0
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) or (humanoid.MoveDirection.Magnitude > 0) then
+				verticalMove = speed / 1.5
+			end
+			wallVel.Velocity = Vector3.new(0, verticalMove, 0) - (rayResult.Normal * 10)
+		else
+			if wallVel then
+				wallVel:Destroy()
+				wallVel = nil
+			end
+		end
+	end
+end)
+
+UserInputService.JumpRequest:Connect(function()
+	if infiniteJump and humanoid then
+		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	end
+end)
+
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function()
+		if showESP then
+			task.wait(0.8)
+			createESP(plr)
+		end
+	end)
+end)
+
+player.CharacterAdded:Connect(function(newChar)
+	task.wait(0.5)
+	updateChar(newChar)
+	stopFly()
+	stopFling()
+	noclip = false
+	soulOut = false
+	wallWalk = false
+	resetHitboxes()
+	
+	soulBtn.Text = "ถอดจิตล่องหน: ปิด"
+	soulBtn.BackgroundColor3 = Color3.fromRGB(210, 70, 70)
+	noclipBtn.Text = "เดินทะลุ (Noclip): ปิด"
+	noclipBtn.BackgroundColor3 = Color3.fromRGB(210, 70, 70)
+	wallBtn.Text = "ไต่กำแพง (Spider): ปิด"
+	wallBtn.BackgroundColor3 = Color3.fromRGB(210, 70, 70)
+end)
+
+----------------------------------------------------
+-- DRAG SYSTEM & MILK TOGGLE BUTTON
+----------------------------------------------------
+local function enableDrag(dragFrame, handle)
+	handle = handle or dragFrame
+	local dragging, dragStart, startPos, dragMoved = false, nil, nil, false
+
+	handle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragMoved = false
+			dragStart = input.Position
+			startPos = dragFrame.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local delta = input.Position - dragStart
+			if delta.Magnitude > 5 then
+				dragMoved = true
+			end
+			dragFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+
+	return function() return dragMoved end
+end
+
+enableDrag(frame, header)
+
+local milk = Instance.new("TextButton")
+milk.Size = UDim2.new(0, 50, 0, 50)
+milk.AnchorPoint = Vector2.new(0.5, 0.5)
+milk.Position = UDim2.new(0.05, 25, 0.2, 25)
+milk.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+milk.Text = "🥛"
+milk.TextSize = 24
+milk.Parent = screenGui
+Instance.new("UICorner", milk).CornerRadius = UDim.new(1, 0)
+
+local milkStroke = Instance.new("UIStroke")
+milkStroke.Color = Color3.fromRGB(0, 140, 240)
+milkStroke.Thickness = 2
+milkStroke.Parent = milk
+
+local isMilkMoved = enableDrag(milk, milk)
+
+milk.MouseButton1Click:Connect(function()
+	if not isMilkMoved() then
+		frame.Visible = not frame.Visible
+	end
+end)
+
+local rotationSpeed = 90
+RunService.RenderStepped:Connect(function(dt)
+	if milk and milk.Parent then
+		milk.Rotation = (milk.Rotation + rotationSpeed * dt) % 360
+	end
+end)
+
+print("UI น้องเปา V3.8 (God-Mode Safe Fling Fixed + Added Warning) โหลดเรียบร้อย!")
