@@ -1,0 +1,232 @@
+-- อ้างอิงตัวผู้เล่นและบริการระบบ
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- 1. สร้าง ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MyCustomUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- 2. สร้าง Frame (หน้าต่างหลัก - ขนาดเริ่มต้น 500x280)
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 500, 0, 280)
+frame.Position = UDim2.new(0.5, -250, 0.5, -140) -- จัดกลางหน้าจอพอดี
+frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 18)
+uiCorner.Parent = frame
+
+-- 3. แถบหัวข้อด้านบน (Header Bar)
+local headerBar = Instance.new("Frame")
+headerBar.Name = "HeaderBar"
+headerBar.Size = UDim2.new(1, 0, 0, 55)
+headerBar.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+headerBar.BorderSizePixel = 0
+headerBar.Parent = frame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 18)
+headerCorner.Parent = headerBar
+
+-- 4. ข้อความชื่อ UI น้องเปา
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, -60, 1, 0) -- ปรับขนาดเผื่อพื้นที่ให้ปุ่ม X ด้านขวา
+titleLabel.Position = UDim2.new(0, 20, 0, 0)
+titleLabel.Text = "🥛 UI น้องเปา"
+titleLabel.TextColor3 = Color3.fromRGB(40, 40, 40)
+titleLabel.TextSize = 24
+titleLabel.Font = Enum.Font.FredokaOne
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.BackgroundTransparency = 1
+titleLabel.Parent = headerBar
+
+----------------------------------------------------
+-- เพิ่มปุ่มปิดสคริปต์ (ปุ่ม X มุมขวาบน)
+----------------------------------------------------
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 35, 0, 35)
+closeButton.Position = UDim2.new(1, -45, 0.5, -17.5)
+closeButton.BackgroundColor3 = Color3.fromRGB(240, 100, 100)
+closeButton.Text = "✕"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 16
+closeButton.Font = Enum.Font.FredokaOne
+closeButton.BorderSizePixel = 0
+closeButton.Parent = headerBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(1, 0)
+closeCorner.Parent = closeButton
+
+-- ฟังก์ชันเมื่อกดปุ่ม X ให้ทำลาย ScreenGui ทิ้งทั้งหมด
+closeButton.Activated:Connect(function()
+    screenGui:Destroy()
+end)
+
+----------------------------------------------------
+-- 5. สร้างปุ่มมุมขวาล่างสำหรับปรับขนาด (Resize Handle)
+----------------------------------------------------
+local resizeHandle = Instance.new("TextButton")
+resizeHandle.Name = "ResizeHandle"
+resizeHandle.Size = UDim2.new(0, 25, 0, 25)
+resizeHandle.Position = UDim2.new(1, -25, 1, -25)
+resizeHandle.BackgroundTransparency = 1
+resizeHandle.Text = "◢"
+resizeHandle.TextColor3 = Color3.fromRGB(180, 180, 180)
+resizeHandle.TextSize = 16
+resizeHandle.Parent = frame
+
+----------------------------------------------------
+-- 6. ระบบปรับขนาด UI (Resize System)
+----------------------------------------------------
+local resizing = false
+local resizeStart, startSize
+
+resizeHandle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        resizing = true
+        resizeStart = input.Position
+        startSize = frame.AbsoluteSize
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - resizeStart
+        
+        -- จำกัดช่วงความกว้างระหว่าง 120 ถึง 750 พิกเซล
+        local newWidth = math.clamp(startSize.X + delta.X, 120, 750)
+        
+        -- ล็อคความสูงไว้ที่ 280 พิกเซล
+        frame.Size = UDim2.new(0, newWidth, 0, 280)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        resizing = false
+    end
+end)
+
+----------------------------------------------------
+-- 7. สร้างปุ่มวงกลมเปิด-ปิด UI (สำหรับมือถือ)
+----------------------------------------------------
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 65, 0, 65)
+toggleButton.Position = UDim2.new(0.05, 0, 0.2, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Text = "🥛"
+toggleButton.TextSize = 34
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(1, 0)
+btnCorner.Parent = toggleButton
+
+local btnStroke = Instance.new("UIStroke")
+btnStroke.Color = Color3.fromRGB(220, 220, 220)
+btnStroke.Thickness = 2
+btnStroke.Parent = toggleButton
+
+-- ระบบทำให้ปุ่มวงกลม "หมุนตลอดเวลา"
+local runConnection
+runConnection = RunService.RenderStepped:Connect(function(deltaTime)
+    if toggleButton and toggleButton.Parent then
+        toggleButton.Rotation = (toggleButton.Rotation + (60 * deltaTime)) % 360
+    else
+        if runConnection then runConnection:Disconnect() end
+    end
+end)
+
+----------------------------------------------------
+-- ระบบฟังก์ชั่นสร้าง Drag (ลากย้ายตำแหน่ง UI)
+----------------------------------------------------
+local function enableDrag(targetElement, moveElement)
+    local dragging = false
+    local dragStart, startPos
+
+    targetElement.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = moveElement.Position
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            moveElement.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+-- เปิดใช้งานการลากย้ายหน้าต่างหลัก (MainFrame)
+enableDrag(headerBar, frame)
+
+----------------------------------------------------
+-- ระบบลากปุ่มวงกลม (Drag) + แยกแยะการเปิด/ปิด UI
+----------------------------------------------------
+local btnDragging = false
+local btnDragStart, btnStartPos
+local isMoved = false
+
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        btnDragging = true
+        isMoved = false
+        btnDragStart = input.Position
+        btnStartPos = toggleButton.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if btnDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - btnDragStart
+        if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then
+            isMoved = true
+        end
+        toggleButton.Position = UDim2.new(
+            btnStartPos.X.Scale,
+            btnStartPos.X.Offset + delta.X,
+            btnStartPos.Y.Scale,
+            btnStartPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        btnDragging = false
+    end
+end)
+
+toggleButton.Activated:Connect(function()
+    if not isMoved then
+        frame.Visible = not frame.Visible
+    end
+end)
