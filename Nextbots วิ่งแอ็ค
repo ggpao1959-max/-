@@ -1,8 +1,7 @@
--- [[ Nico's Menu x UI น้องเปา (10-Level Speed Multiplier Edition) ]] --
+-- [[ Nico's Menu x UI น้องเปา (Compact Edition: 2 Functions) ]] --
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -18,40 +17,40 @@ screenGui.Name = "MyCustomUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
--- 2. สร้าง Frame (หน้าต่างหลัก)
+-- 2. สร้าง Frame (หน้าต่างหลัก - ปรับขนาดให้เล็กลงกะทัดรัด)
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
-frame.Size = UDim2.new(0, 500, 0, 420)
-frame.Position = UDim2.new(0.5, -250, 0.5, -210)
+frame.Size = UDim2.new(0, 420, 0, 225)
+frame.Position = UDim2.new(0.5, -210, 0.5, -112)
 frame.BackgroundColor3 = Color3.fromRGB(245, 247, 250)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Parent = screenGui
 
 local uiCorner = Instance.new("UICorner")
-uiCorner.CornerRadius = UDim.new(0, 18)
+uiCorner.CornerRadius = UDim.new(0, 16)
 uiCorner.Parent = frame
 
 -- 3. แถบหัวข้อด้านบน (Header Bar)
 local headerBar = Instance.new("Frame")
 headerBar.Name = "HeaderBar"
-headerBar.Size = UDim2.new(1, 0, 0, 55)
+headerBar.Size = UDim2.new(1, 0, 0, 45)
 headerBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 headerBar.BorderSizePixel = 0
 headerBar.Parent = frame
 
 local headerCorner = Instance.new("UICorner")
-headerCorner.CornerRadius = UDim.new(0, 18)
+headerCorner.CornerRadius = UDim.new(0, 16)
 headerCorner.Parent = headerBar
 
 -- 4. ข้อความชื่อ UI
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "TitleLabel"
-titleLabel.Size = UDim2.new(1, -60, 1, 0)
-titleLabel.Position = UDim2.new(0, 20, 0, 0)
-titleLabel.Text = "🥛 UI น้องเปา [10-Levels Speed]"
+titleLabel.Size = UDim2.new(1, -50, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.Text = "🥛 UI น้องเปา [Compact 2-Func]"
 titleLabel.TextColor3 = Color3.fromRGB(40, 40, 40)
-titleLabel.TextSize = 18
+titleLabel.TextSize = 16
 titleLabel.Font = Enum.Font.FredokaOne
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.BackgroundTransparency = 1
@@ -60,12 +59,12 @@ titleLabel.Parent = headerBar
 -- ปุ่มปิดสคริปต์ (ปุ่ม X)
 local closeButton = Instance.new("TextButton")
 closeButton.Name = "CloseButton"
-closeButton.Size = UDim2.new(0, 35, 0, 35)
-closeButton.Position = UDim2.new(1, -45, 0.5, -17.5)
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -38, 0.5, -15)
 closeButton.BackgroundColor3 = Color3.fromRGB(240, 100, 100)
 closeButton.Text = "✕"
 closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.TextSize = 16
+closeButton.TextSize = 14
 closeButton.Font = Enum.Font.FredokaOne
 closeButton.BorderSizePixel = 0
 closeButton.Parent = headerBar
@@ -78,104 +77,55 @@ closeButton.Activated:Connect(function()
     screenGui:Destroy()
 end)
 
--- 5. Resize Handle (มุมขวาล่าง)
-local resizeHandle = Instance.new("TextButton")
-resizeHandle.Name = "ResizeHandle"
-resizeHandle.Size = UDim2.new(0, 25, 0, 25)
-resizeHandle.Position = UDim2.new(1, -25, 1, -25)
-resizeHandle.BackgroundTransparency = 1
-resizeHandle.Text = "◢"
-resizeHandle.TextColor3 = Color3.fromRGB(180, 180, 180)
-resizeHandle.TextSize = 16
-resizeHandle.Parent = frame
-
-local resizing = false
-local resizeStart, startSize
-
-resizeHandle.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        resizing = true
-        resizeStart = input.Position
-        startSize = frame.AbsoluteSize
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - resizeStart
-        local newWidth = math.clamp(startSize.X + delta.X, 350, 750)
-        local newHeight = math.clamp(startSize.Y + delta.Y, 300, 550)
-        frame.Size = UDim2.new(0, newWidth, 0, newHeight)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        resizing = false
-    end
-end)
-
 ----------------------------------------------------
--- ส่วนระบบหน้าต่างเลื่อน (ScrollingFrame)
+-- ส่วนเนื้อหาภายใน UI (จัดวางพอดี 2 ฟังก์ชัน)
 ----------------------------------------------------
-local container = Instance.new("ScrollingFrame")
-container.Size = UDim2.new(1, -20, 1, -70)
-container.Position = UDim2.new(0, 10, 0, 60)
-container.BackgroundTransparency = 1
-container.CanvasSize = UDim2.new(0, 0, 0, 340)
-container.ScrollBarThickness = 4
-container.Parent = frame
+local contentHolder = Instance.new("Frame")
+contentHolder.Size = UDim2.new(1, -20, 1, -55)
+contentHolder.Position = UDim2.new(0, 10, 0, 50)
+contentHolder.BackgroundTransparency = 1
+contentHolder.Parent = frame
 
-local function createFeatureToggle(name, posY, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 45)
-    btn.Position = UDim2.new(0, 0, 0, posY)
-    btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Text = "   " .. name
-    btn.TextColor3 = Color3.fromRGB(80, 80, 80)
-    btn.TextSize = 15
-    btn.Font = Enum.Font.GothamBold
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.Parent = container
+-- [[ 1. Auto-Bhop ]] --
+local autoBhopBtn = Instance.new("TextButton")
+autoBhopBtn.Size = UDim2.new(1, 0, 0, 38)
+autoBhopBtn.Position = UDim2.new(0, 0, 0, 0)
+autoBhopBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+autoBhopBtn.Text = "   🐰 Auto-Bhop (กระโดดต่อเนื่อง)"
+autoBhopBtn.TextColor3 = Color3.fromRGB(80, 80, 80)
+autoBhopBtn.TextSize = 14
+autoBhopBtn.Font = Enum.Font.GothamBold
+autoBhopBtn.TextXAlignment = Enum.TextXAlignment.Left
+autoBhopBtn.Parent = contentHolder
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = btn
+local bhopCorner = Instance.new("UICorner")
+bhopCorner.CornerRadius = UDim.new(0, 10)
+bhopCorner.Parent = autoBhopBtn
 
-    local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(0, 80, 1, 0)
-    status.Position = UDim2.new(1, -90, 0, 0)
-    status.BackgroundTransparency = 1
-    status.Text = "[ OFF ]"
-    status.TextColor3 = Color3.fromRGB(200, 60, 60)
-    status.TextSize = 14
-    status.Font = Enum.Font.GothamBold
-    status.Parent = btn
+local bhopStatus = Instance.new("TextLabel")
+bhopStatus.Size = UDim2.new(0, 70, 1, 0)
+bhopStatus.Position = UDim2.new(1, -80, 0, 0)
+bhopStatus.BackgroundTransparency = 1
+bhopStatus.Text = "[ OFF ]"
+bhopStatus.TextColor3 = Color3.fromRGB(200, 60, 60)
+bhopStatus.TextSize = 13
+bhopStatus.Font = Enum.Font.GothamBold
+bhopStatus.Parent = autoBhopBtn
 
-    local active = false
-    btn.MouseButton1Click:Connect(function()
-        active = not active
-        if active then
-            status.Text = "[ ON ]"
-            status.TextColor3 = Color3.fromRGB(46, 204, 113)
-            btn.BackgroundColor3 = Color3.fromRGB(235, 255, 240)
-        else
-            status.Text = "[ OFF ]"
-            status.TextColor3 = Color3.fromRGB(200, 60, 60)
-            btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        end
-        callback(active)
-    end)
-end
-
--- [[ ตัวแปรสถานะ ]] --
 local autoBhopActive = false
-local speedMultiplierActive = false
-local currentLevel = 1 -- เริ่มต้นที่ระดับ 1 (24 * 1)
-local espActive = false
-local antiAfkActive = false
+autoBhopBtn.MouseButton1Click:Connect(function()
+    autoBhopActive = not autoBhopActive
+    if autoBhopActive then
+        bhopStatus.Text = "[ ON ]"
+        bhopStatus.TextColor3 = Color3.fromRGB(46, 204, 113)
+        autoBhopBtn.BackgroundColor3 = Color3.fromRGB(235, 255, 240)
+    else
+        bhopStatus.Text = "[ OFF ]"
+        bhopStatus.TextColor3 = Color3.fromRGB(200, 60, 60)
+        autoBhopBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    end
+end)
 
--- 1. Auto-Bhop
 RunService.RenderStepped:Connect(function()
     if autoBhopActive then
         local char = player.Character
@@ -187,38 +137,40 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
-createFeatureToggle("🐰 Auto-Bhop (กระโดดต่อเนื่อง)", 5, function(state) autoBhopActive = state end)
 
--- 2. Speed Multiplier (10 ระดับเต็ม: 24×1 ถึง 24×10)
+-- [[ 2. Speed Multiplier (10 ระดับ) ]] --
 local speedContainer = Instance.new("Frame")
-speedContainer.Size = UDim2.new(1, 0, 0, 90)
-speedContainer.Position = UDim2.new(0, 0, 0, 55)
+speedContainer.Size = UDim2.new(1, 0, 0, 80)
+speedContainer.Position = UDim2.new(0, 0, 0, 46)
 speedContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-speedContainer.Parent = container
+speedContainer.Parent = contentHolder
 
 local speedCorner = Instance.new("UICorner")
 speedCorner.CornerRadius = UDim.new(0, 10)
 speedCorner.Parent = speedContainer
 
 local speedTitle = Instance.new("TextLabel")
-speedTitle.Size = UDim2.new(1, -20, 0, 30)
-speedTitle.Position = UDim2.new(0, 15, 0, 5)
+speedTitle.Size = UDim2.new(1, -15, 0, 25)
+speedTitle.Position = UDim2.new(0, 12, 0, 4)
 speedTitle.BackgroundTransparency = 1
 speedTitle.Text = "⚡ Speed 10 Levels (24 × ระดับ)"
 speedTitle.TextColor3 = Color3.fromRGB(80, 80, 80)
-speedTitle.TextSize = 14
+speedTitle.TextSize = 13
 speedTitle.Font = Enum.Font.GothamBold
 speedTitle.TextXAlignment = Enum.TextXAlignment.Left
 speedTitle.Parent = speedContainer
 
--- ปุ่มเปิด-ปิด Speed Hack
+local speedMultiplierActive = false
+local currentLevel = 1
+
+-- ปุ่มเปิด-ปิด Speed
 local speedToggleBtn = Instance.new("TextButton")
-speedToggleBtn.Size = UDim2.new(0, 90, 0, 35)
-speedToggleBtn.Position = UDim2.new(1, -100, 0, 42)
+speedToggleBtn.Size = UDim2.new(0, 80, 0, 32)
+speedToggleBtn.Position = UDim2.new(1, -90, 0, 38)
 speedToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 235, 235)
 speedToggleBtn.Text = "OFF"
 speedToggleBtn.TextColor3 = Color3.fromRGB(200, 60, 60)
-speedToggleBtn.TextSize = 13
+speedToggleBtn.TextSize = 12
 speedToggleBtn.Font = Enum.Font.GothamBold
 speedToggleBtn.Parent = speedContainer
 
@@ -236,7 +188,6 @@ speedToggleBtn.MouseButton1Click:Connect(function()
         speedToggleBtn.Text = "OFF"
         speedToggleBtn.TextColor3 = Color3.fromRGB(200, 60, 60)
         speedToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 235, 235)
-        -- คืนค่าความเร็วปกติเมื่อปิด
         local char = player.Character
         if char then
             local hum = char:FindFirstChildOfClass("Humanoid")
@@ -245,14 +196,14 @@ speedToggleBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ปุ่มลดระดับความเร็ว (-)
+-- ปุ่มลด (-)
 local minusBtn = Instance.new("TextButton")
-minusBtn.Size = UDim2.new(0, 35, 0, 35)
-minusBtn.Position = UDim2.new(0, 15, 0, 42)
+minusBtn.Size = UDim2.new(0, 30, 0, 32)
+minusBtn.Position = UDim2.new(0, 12, 0, 38)
 minusBtn.BackgroundColor3 = Color3.fromRGB(230, 230, 240)
 minusBtn.Text = "-"
 minusBtn.TextColor3 = Color3.fromRGB(40, 40, 40)
-minusBtn.TextSize = 16
+minusBtn.TextSize = 15
 minusBtn.Font = Enum.Font.GothamBold
 minusBtn.Parent = speedContainer
 
@@ -260,25 +211,25 @@ local minusCorner = Instance.new("UICorner")
 minusCorner.CornerRadius = UDim.new(0, 6)
 minusCorner.Parent = minusBtn
 
--- ป้ายแสดงค่าระดับความเร็ว (1 ถึง 10)
+-- ป้ายแสดงระดับ
 local valueLabel = Instance.new("TextLabel")
-valueLabel.Size = UDim2.new(0, 135, 0, 35)
-valueLabel.Position = UDim2.new(0, 55, 0, 42)
+valueLabel.Size = UDim2.new(0, 120, 0, 32)
+valueLabel.Position = UDim2.new(0, 45, 0, 38)
 valueLabel.BackgroundTransparency = 1
 valueLabel.Text = "24 × " .. currentLevel .. " (" .. (24 * currentLevel) .. ")"
 valueLabel.TextColor3 = Color3.fromRGB(40, 40, 40)
-valueLabel.TextSize = 13
+valueLabel.TextSize = 12
 valueLabel.Font = Enum.Font.GothamBold
 valueLabel.Parent = speedContainer
 
--- ปุ่มเพิ่มระดับความเร็ว (+)
+-- ปุ่มเพิ่ม (+)
 local plusBtn = Instance.new("TextButton")
-plusBtn.Size = UDim2.new(0, 35, 0, 35)
-plusBtn.Position = UDim2.new(0, 195, 0, 42)
+plusBtn.Size = UDim2.new(0, 30, 0, 32)
+plusBtn.Position = UDim2.new(0, 168, 0, 38)
 plusBtn.BackgroundColor3 = Color3.fromRGB(230, 230, 240)
 plusBtn.Text = "+"
 plusBtn.TextColor3 = Color3.fromRGB(40, 40, 40)
-plusBtn.TextSize = 16
+plusBtn.TextSize = 15
 plusBtn.Font = Enum.Font.GothamBold
 plusBtn.Parent = speedContainer
 
@@ -286,7 +237,6 @@ local plusCorner = Instance.new("UICorner")
 plusCorner.CornerRadius = UDim.new(0, 6)
 plusCorner.Parent = plusBtn
 
--- ระบบคำนวณ 10 ระดับ (จำกัดค่าไม่ให้ต่ำกว่า 1 และไม่เกิน 10)
 minusBtn.MouseButton1Click:Connect(function()
     if currentLevel > 1 then
         currentLevel = currentLevel - 1
@@ -301,7 +251,6 @@ plusBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ลูปอัปเดตความเร็วตามระดับที่เลือก
 RunService.RenderStepped:Connect(function()
     if speedMultiplierActive then
         local char = player.Character
@@ -314,55 +263,16 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- 3. ESP
-RunService.RenderStepped:Connect(function()
-    if espActive then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= player and p.Character then
-                local char = p.Character
-                if not char:FindFirstChild("PaoHighlight") then
-                    local hl = Instance.new("Highlight")
-                    hl.Name = "PaoHighlight"
-                    hl.Adornee = char
-                    hl.FillColor = Color3.fromRGB(0, 162, 255)
-                    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                    hl.Parent = char
-                end
-            end
-        end
-    else
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p.Character and p.Character:FindFirstChild("PaoHighlight") then
-                p.Character.PaoHighlight:Destroy()
-            end
-        end
-    end
-end)
-createFeatureToggle("👁️ Player ESP (มองทะลุ)", 150, function(state) espActive = state end)
-
--- 4. Anti-AFK
-task.spawn(function()
-    while true do
-        task.wait(60)
-        if antiAfkActive then
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-            task.wait(0.1)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-        end
-    end
-end)
-createFeatureToggle("🛡️ Anti-AFK (กันหลุดห้อง)", 200, function(state) antiAfkActive = state end)
-
 ----------------------------------------------------
--- 7. สร้างปุ่มวงกลมเปิด-ปิด UI (หมุนได้ + ลากได้)
+-- สร้างปุ่มกลมเปิด-ปิด UI (หมุนได้ + ลากได้)
 ----------------------------------------------------
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.new(0, 60, 0, 60)
+toggleButton.Size = UDim2.new(0, 50, 0, 50)
 toggleButton.Position = UDim2.new(0.05, 0, 0.2, 0)
 toggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.Text = "🥛"
-toggleButton.TextSize = 30
+toggleButton.TextSize = 25
 toggleButton.BorderSizePixel = 0
 toggleButton.Parent = screenGui
 
@@ -375,7 +285,6 @@ btnStroke.Color = Color3.fromRGB(220, 220, 220)
 btnStroke.Thickness = 2
 btnStroke.Parent = toggleButton
 
--- ทำให้ปุ่มหมุนตลอดเวลา
 local runConnection
 runConnection = RunService.RenderStepped:Connect(function(deltaTime)
     if toggleButton and toggleButton.Parent then
@@ -385,7 +294,7 @@ runConnection = RunService.RenderStepped:Connect(function(deltaTime)
     end
 end)
 
--- ระบบลากย้าย MainFrame
+-- ระบบลาก MainFrame
 local function enableDrag(targetElement, moveElement)
     local dragging, dragStart, startPos
     targetElement.InputBegan:Connect(function(input)
@@ -409,7 +318,7 @@ local function enableDrag(targetElement, moveElement)
 end
 enableDrag(headerBar, frame)
 
--- ระบบลากปุ่มกลมเปิด-ปิด UI
+-- ระบบลากปุ่มกลมเปิด-ปิด
 local btnDragging, btnDragStart, btnStartPos, isMoved = false, nil, nil, false
 toggleButton.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -440,4 +349,4 @@ toggleButton.Activated:Connect(function()
     end
 end)
 
-print("🥛 UI น้องเปา [10-Level Speed Edition] Loaded Successfully!")
+print("🥛 UI น้องเปา [Compact 2-Func Edition] Loaded Successfully!")
